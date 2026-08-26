@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Haat — India's wholesale marketplace</title>
+<meta name="description" content="Haat connects Indian retailers with independent Indian brands. Wholesale pricing, 60-day payment terms, free returns on your opening order.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231B3A5C'/%3E%3Cpath d='M8 22V10M8 16h9M17 10v12' stroke='%23D99A16' stroke-width='2.6' stroke-linecap='round'/%3E%3Ccircle cx='23.5' cy='12' r='2' fill='%23D99A16'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<!-- utility bar -->
+<div class="utility">
+  <div class="wrap">
+    <span><b>Pay in 60 days</b> &nbsp;on every order</span>
+    <span class="u-sep u-hide">·</span>
+    <span class="u-hide">Free returns on your opening order</span>
+    <span class="u-sep u-hide">·</span>
+    <span class="u-hide">Ships across all 28 states</span>
+  </div>
+</div>
+
+<!-- header -->
+<header class="hdr">
+  <div class="wrap hdr-main">
+    <a href="#/" class="logo" aria-label="Haat home">
+      <span class="logo-mark">हाट</span>
+      <span class="logo-word">haat<span class="logo-tld">.</span></span>
+    </a>
+    <div class="search">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Search 83 products from Indian makers…" autocomplete="off">
+    </div>
+    <div class="hdr-actions">
+      <a href="#/sell" class="btn btn-plain">Sell on Haat</a>
+      <a href="#/join" class="btn btn-ghost" id="authBtn">Sign in</a>
+      <a href="#/cart" class="btn btn-ink cart-btn" id="cartBtn">
+        Order
+        <span class="cart-dot" id="cartDot" hidden>0</span>
+      </a>
+    </div>
+  </div>
+  <nav class="hdr-nav"><div class="wrap" id="navCats"></div></nav>
+</header>
+
+<main id="app"></main>
+
+<!-- footer -->
+<footer class="ftr">
+  <div class="blockprint" style="opacity:.5;margin-bottom:44px"></div>
+  <div class="wrap">
+    <div class="ftr-grid">
+      <div class="ftr-brand">
+        <a href="#/" class="logo">
+          <span class="logo-mark" style="color:#D99A16">हाट</span>
+          <span class="logo-word">haat<span class="logo-tld">.</span></span>
+        </a>
+        <p>A wholesale marketplace for Indian retail. We put independent Indian makers on the shelves of independent Indian shops.</p>
+      </div>
+      <div><h5>Shop</h5><ul>
+        <li><a href="#/browse">All products</a></li>
+        <li><a href="#/browse?v=organic">Chemical-free</a></li>
+        <li><a href="#/browse?v=native-seed">Native varieties</a></li>
+        <li><a href="#/browse?sort=new">New this season</a></li>
+      </ul></div>
+      <div><h5>Retailers</h5><ul>
+        <li><a href="#/join">Open an account</a></li>
+        <li><a href="#/join">60-day terms</a></li>
+        <li><a href="#/join">Returns policy</a></li>
+        <li><a href="#/join">Order minimums</a></li>
+      </ul></div>
+      <div><h5>Brands</h5><ul>
+        <li><a href="#/sell">Sell on Haat</a></li>
+        <li><a href="#/sell">Pricing &amp; fees</a></li>
+        <li><a href="#/sell">Logistics</a></li>
+        <li><a href="#/sell">Brand handbook</a></li>
+      </ul></div>
+      <div><h5>Company</h5><ul>
+        <li><a href="#/sell">About</a></li>
+        <li><a href="#/sell">Careers</a></li>
+        <li><a href="#/sell">Press</a></li>
+        <li><a href="#/sell">Contact</a></li>
+      </ul></div>
+    </div>
+    <div class="ftr-bot">
+      <span>© 2026 Haat Wholesale Pvt. Ltd. · Bengaluru</span>
+      <span>Prototype build · Not a live marketplace · Catalogue shown for demonstration only</span>
+    </div>
+  </div>
+</footer>
+
+<div class="scrim" id="scrim"><div class="modal" id="modal"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="assets/data.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
