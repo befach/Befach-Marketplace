@@ -183,10 +183,18 @@ function navCats() {
   var hash = location.hash;
   var html = '<a class="navlink' + (/#\/browse(\?|$)/.test(hash) && !/cat=/.test(hash) ? ' on' : '') +
              '" href="#/browse">All products</a>';
-  html += CATEGORIES.filter(function (c) { return c.count; }).map(function (c) {
+  /* 24 categories is more than a nav bar can carry. Show the ten biggest,
+     always include one the user has filtered to, and leave the rest to the
+     browse rail, which lists every category with counts. */
+  var top = CATEGORIES.filter(function (c) { return c.count; }).slice(0, 10);
+  CATEGORIES.forEach(function (c) {
+    if (hash.indexOf('cat=' + c.key) > -1 && top.indexOf(c) < 0) top.push(c);
+  });
+  html += top.map(function (c) {
     return '<a class="navlink' + (hash.indexOf('cat=' + c.key) > -1 ? ' on' : '') +
            '" href="#/browse?cat=' + c.key + '">' + esc(c.name) + '</a>';
   }).join('');
+  html += '<a class="navlink" href="#/browse">All categories &rsaquo;</a>';
   html += '<a class="navlink accent" href="#/browse?sort=new">New this season</a>';
   byId('navCats').innerHTML = html;
 }
@@ -258,7 +266,9 @@ function viewHome() {
     }).join('') + '</div>' +
   '</div></section>' +
 
-  BRANDS.map(function (b, i) {
+  /* Two full spotlights only — six of these stacked is a wall. The rest get
+     a compact rail below. */
+  BRANDS.slice(0, 2).map(function (b, i) {
     var mine  = PRODUCTS.filter(function (p) { return p.brandId === b.id; });
     var shots = mine.slice(i === 0 ? 0 : 3, (i === 0 ? 0 : 3) + 4);
     return '<section class="' + (i === 0 ? 'sec' : 'sec-tight') + '"><div class="wrap">' +
@@ -281,6 +291,23 @@ function viewHome() {
       '</div></div>' +
     '</div></section>';
   }).join('') +
+
+  (BRANDS.length > 2
+    ? '<section class="sec-tight"><div class="wrap">' +
+        '<div class="sec-head"><div><h2>More brands on Befach</h2>' +
+        '<p>Every one vetted, on 60-day terms, in the same cart.</p></div>' +
+        '<a class="link-more" href="#/browse">Shop all ' + PRODUCTS.length + ' products</a></div>' +
+        '<div class="pipeline-grid">' + BRANDS.slice(2).map(function (b) {
+          var n = PRODUCTS.filter(function (p) { return p.brandId === b.id; }).length;
+          return '<a class="pbrand" href="#/brand/' + esc(b.id) + '">' +
+            '<div class="mono" style="background:' + esc(b.accent) + '">' +
+              esc(b.short.charAt(0)) + '</div>' +
+            '<h5>' + esc(b.name) + '</h5>' +
+            '<span>' + esc(b.shipsFrom) + '</span>' +
+            '<span>' + n + ' products</span></a>';
+        }).join('') + '</div>' +
+      '</div></section>'
+    : '') +
 
   '<section class="sec-tight"><div class="wrap">' +
     '<div class="sec-head"><div><h2>Moving fastest this month</h2>' +

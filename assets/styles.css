@@ -425,6 +425,8 @@ p{margin:0}
   padding:18px 14px;text-align:center}
 .pbrand .mono{width:42px;height:42px;border-radius:50%;margin:0 auto 10px;display:grid;
   place-items:center;color:#fff;font-family:var(--serif);font-size:17px;font-weight:600}
+.pbrand{transition:transform .16s,box-shadow .16s,border-color .16s;display:block}
+.pbrand:hover{transform:translateY(-3px);box-shadow:var(--shadow-lg);border-color:var(--line-2)}
 .pbrand h5{font-size:13px;margin:0 0 3px;font-family:var(--serif);font-weight:600}
 .pbrand span{font-size:11px;color:var(--ink-mute);display:block}
 @media(max-width:1000px){.pipeline-grid{grid-template-columns:repeat(3,1fr)}}
