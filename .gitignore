@@ -10,7 +10,7 @@ build/catalog.json
 
 # generated single-file bundle (3 MB base64 blob, rebuild with build/artifact.js)
 haat-artifact.html
-site/_preview.html
+docs/_preview.html
 
 # os / editor
 Thumbs.db

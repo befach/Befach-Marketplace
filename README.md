@@ -5,13 +5,20 @@ makers sell wholesale to independent Indian retailers.
 
 **233 products · 3 brands · 20 categories**, seeded from real catalogues.
 
-## Run it
+## See it live
+
+https://befach.github.io/Befach-Marketplace/
+
+GitHub Pages serves the `docs/` folder straight off `main` — no build step, no CI.
+Push a change to `docs/` and it redeploys.
+
+## Run it locally
 
 ```bash
 node serve.js
 ```
 
-Then open http://localhost:4321 — no build step needed, `site/` is ready to serve.
+Then open http://localhost:4321 — no build step needed, `docs/` is ready to serve.
 
 ## Data sources
 
@@ -28,7 +35,7 @@ derives its own case packs, so nothing is double-counted.
 ## Layout
 
 ```
-site/                  the website — this is what you deploy
+docs/                  the website — this is what you deploy
   index.html           shell: header, category nav, footer
   assets/styles.css    design system (tokens, components, responsive)
   assets/app.js        hash router, catalogue views, cart, trade-account gate
@@ -37,7 +44,7 @@ build/
   happilo.js           pulls the Happilo feed    -> happilo-raw.json
   overra.js            pulls the Overra feed     -> overra-raw.json
   catalog.js           all sources               -> catalog.json
-  data.js              catalog.json              -> site/assets/data.js
+  data.js              catalog.json              -> docs/assets/data.js
   fetchimgs.js         downloads product photos  -> build/img/
   optimise.js          re-encodes to 300px JPEGs -> build/img-opt/
   artifact.js          bundles everything        -> haat-artifact.html

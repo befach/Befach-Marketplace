@@ -1,4 +1,4 @@
-/* Turns catalog.json into the payload the site loads (site/assets/data.js). */
+/* Turns catalog.json into the payload the site loads (docs/assets/data.js). */
 const fs = require('fs'), path = require('path');
 const cat = JSON.parse(fs.readFileSync(path.join(__dirname, 'catalog.json'), 'utf8'));
 
@@ -74,10 +74,10 @@ cat.products.forEach(p => {
 });
 
 const payload = { products: cat.products, categories: cat.categories, brands, pipeline, values };
-fs.writeFileSync(path.join(__dirname, '..', 'site', 'assets', 'data.js'),
+fs.writeFileSync(path.join(__dirname, '..', 'docs', 'assets', 'data.js'),
   'window.HAAT = ' + JSON.stringify(payload) + ';\n');
 
-console.log('wrote site/assets/data.js');
+console.log('wrote docs/assets/data.js');
 console.log('  products  ', cat.products.length);
 console.log('  categories', cat.categories.length);
 console.log('  brands    ', brands.length, 'live +', pipeline.length, 'onboarding');
