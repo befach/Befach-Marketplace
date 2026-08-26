@@ -14,4 +14,4 @@ http.createServer((req,res)=>{
       'Cache-Control':'no-store'});
     res.end(buf);
   });
-}).listen(PORT,()=>console.log('Haat dev server → http://localhost:'+PORT));
+}).listen(PORT,()=>console.log('Befach dev server → http://localhost:'+PORT));

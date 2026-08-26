@@ -1,4 +1,4 @@
-# Haat — India's wholesale marketplace
+# Befach — India's wholesale marketplace
 
 A working prototype of the Faire model rebuilt for India: independent Indian
 makers sell wholesale to independent Indian retailers.
@@ -7,19 +7,18 @@ makers sell wholesale to independent Indian retailers.
 
 ## See it live
 
-**https://raw.githack.com/befach/Befach-Marketplace/main/docs/index.html**
+**https://befach.github.io/Befach-Marketplace/**
 
-Serves `docs/` straight off `main` through a CDN proxy — works today, no repo
-settings needed, and picks up every push. A browser may show a one-time
-"Open the page" notice on first visit.
+GitHub Pages serves the `gh-pages` branch, which holds the contents of `docs/`
+at its root. Edit `docs/` on `main` as normal, then ship both branches with:
 
-### Nicer URL, once Pages is on
+```bash
+npm run deploy
+```
 
-https://befach.github.io/Befach-Marketplace/
-
-Needs one toggle a repo admin has to set, at
-`Settings -> Pages -> Source: Deploy from a branch -> main -> /docs`.
-Nothing in the repo needs to change — `docs/` is already laid out for it.
+That pushes `main` and then re-publishes `docs/` to `gh-pages` via git subtree.
+Pages rebuilds in a minute or two. Pushing only to `main` will NOT update the
+live site — the subtree push is the part that does it.
 
 ## Run it locally
 
@@ -56,7 +55,7 @@ build/
   data.js              catalog.json              -> docs/assets/data.js
   fetchimgs.js         downloads product photos  -> build/img/
   optimise.js          re-encodes to 300px JPEGs -> build/img-opt/
-  artifact.js          bundles everything        -> haat-artifact.html
+  artifact.js          bundles everything        -> befach-artifact.html
 serve.js               zero-dependency static server
 ```
 
@@ -74,7 +73,7 @@ Full rebuild, including re-scraping and the single-file bundle:
 node build/happilo.js && node build/overra.js && node build/catalog.js && node build/data.js && node build/fetchimgs.js && node build/optimise.js && node build/artifact.js
 ```
 
-`build/img/`, `build/img-opt/` and `haat-artifact.html` are gitignored — they
+`build/img/`, `build/img-opt/` and `befach-artifact.html` are gitignored — they
 are large and fully regenerable by the commands above.
 
 `optimise.js` needs `sharp` (`npm install`). It exists because the Shopify CDN
@@ -105,7 +104,7 @@ Then rebuild. Two things to watch:
 
 ## The model, as implemented
 
-| Faire | Haat |
+| Faire | Befach |
 |---|---|
 | Wholesale price vs MSRP | Wholesale vs MRP, margin % on every card |
 | Net 60 payment terms | Pay 60 days after delivery, nothing up front |
@@ -135,4 +134,4 @@ scale by price band — both live in `trade()` in `build/catalog.js`.
   brand negotiates its own rate and case pack.
 - Cart, accounts and orders are `localStorage` only. Real trade accounts need a
   backend, GSTIN verification, and a credit underwriter to carry the 60-day terms.
-- "Haat" is a placeholder name — check trademark availability before committing.
+- "Befach" is a placeholder name — check trademark availability before committing.

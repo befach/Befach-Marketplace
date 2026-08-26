@@ -226,7 +226,7 @@ const products = twoBrothers()
   }))
   .concat(shopifySource('overra-raw.json', 'overra', 'ov', {
     /* The typed listings are multipacks of the untyped base SKU — clean 2x/4x/5x
-       price ratios. Keep the single units; Haat derives its own case packs. */
+       price ratios. Keep the single units; Befach derives its own case packs. */
     keep: p => !p.product_type,
     stripName: /^Overra Herbals\s+/gi,
     /* Keep the pack weight in the name: three SKUs are all "Diabeat Plus Sugar"

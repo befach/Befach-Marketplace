@@ -7,7 +7,7 @@ const IMG = path.join(__dirname, 'img-opt');
 
 /* the generated site payload is already the shape the app expects */
 const payload = JSON.parse(R('docs/assets/data.js')
-  .replace(/^window\.HAAT = /, '').replace(/;\s*$/, ''));
+  .replace(/^window\.BEFACH = /, '').replace(/;\s*$/, ''));
 
 let bytes = 0, missing = [];
 payload.products.forEach(p => {
@@ -21,7 +21,7 @@ payload.products.forEach(p => {
 const body = R('docs/index.html').split('<body>')[1].split('</body>')[0]
   .replace(/<script src="[^"]*"><\/script>/g, '');
 
-const out = `<title>Haat Wholesale</title>
+const out = `<title>Befach Wholesale</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=DM+Sans:wght@400;500;600;700&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet">
@@ -29,13 +29,13 @@ const out = `<title>Haat Wholesale</title>
 ${R('docs/assets/styles.css')}
 </style>
 ${body}
-<script>window.HAAT = ${JSON.stringify(payload)};</script>
+<script>window.BEFACH = ${JSON.stringify(payload)};</script>
 <script>
 ${R('docs/assets/app.js')}
 </script>
 `;
 
-const dest = path.join(__dirname, '..', 'haat-artifact.html');
+const dest = path.join(__dirname, '..', 'befach-artifact.html');
 fs.writeFileSync(dest, out);
 
 console.log('products ', payload.products.length, '· brands', payload.brands.length,

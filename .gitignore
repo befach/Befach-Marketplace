@@ -9,7 +9,7 @@ build/img-opt/
 build/catalog.json
 
 # generated single-file bundle (3 MB base64 blob, rebuild with build/artifact.js)
-haat-artifact.html
+befach-artifact.html
 docs/_preview.html
 
 # os / editor

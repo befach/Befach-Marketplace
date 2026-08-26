@@ -75,7 +75,7 @@ cat.products.forEach(p => {
 
 const payload = { products: cat.products, categories: cat.categories, brands, pipeline, values };
 fs.writeFileSync(path.join(__dirname, '..', 'docs', 'assets', 'data.js'),
-  'window.HAAT = ' + JSON.stringify(payload) + ';\n');
+  'window.BEFACH = ' + JSON.stringify(payload) + ';\n');
 
 console.log('wrote docs/assets/data.js');
 console.log('  products  ', cat.products.length);
