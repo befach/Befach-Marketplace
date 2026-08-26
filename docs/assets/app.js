@@ -37,6 +37,14 @@ function find(id) { return PRODUCTS.filter(function (p) { return p.slug === id |
 function q(sel, root) { return (root || document).querySelector(sel); }
 function qa(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
 
+/* The option a buyer picked, by title; falls back to the product default. */
+function defaultVariant(p) { return (p.variants && p.variants[0]) || p; }
+function variantOf(p, size) {
+  if (!p) return { price: 0, mrp: 0, discount: 0, title: '' };
+  var hit = (p.variants || []).filter(function (v) { return v.title === size; })[0];
+  return hit || defaultVariant(p);
+}
+
 function reviewLabel(n) {
   if (!n) return 'New';
   return n >= 1000 ? (Math.floor(n / 100) / 10) + 'k reviews' : n + ' reviews';
@@ -79,7 +87,7 @@ function cartCount() {
 function cartTotal() {
   return cart.reduce(function (n, l) {
     var p = find(l.id);
-    return n + (p ? p.price * l.qty : 0);
+    return n + (p ? variantOf(p, l.size).price * l.qty : 0);
   }, 0);
 }
 function addToCart(id, size, qty) {
@@ -164,7 +172,7 @@ function card(p) {
       '<p class="card-usp">' + esc(p.usp) + '</p>' + rating +
       '<div class="price-row">' + priceBlock +
         '<div class="card-foot">' +
-          '<span class="casepack">' + (p.sizes[0] ? esc(p.sizes[0]) : '&nbsp;') + '</span>' +
+          '<span class="casepack">' + (defaultVariant(p).title ? esc(defaultVariant(p).title) : '&nbsp;') + '</span>' +
           '<button class="btn btn-ghost btn-sm" data-add="' + esc(p.slug) + '">Add</button>' +
         '</div>' +
       '</div>' +
@@ -453,6 +461,21 @@ function opt(v, label, cur) {
   return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + label + '</option>';
 }
 
+/* Price block for one variant. Shared by first render and every size change. */
+function priceBoxHtml(v, qty) {
+  qty = qty || 1;
+  return '<div class="big">' + rupee(v.price) + '</div>' +
+    '<div class="sub">' +
+      (v.mrp ? '<s>MRP ' + rupee(v.mrp) + '</s>' +
+               '<span class="offchip">' + v.discount + '% off</span>' : '') +
+      (v.title ? '<span>' + esc(v.title) + '</span>' : '') +
+    '</div>' +
+    (qty > 1
+      ? '<div class="line-total">' + qty + ' &times; ' + rupee(v.price) +
+        ' = <b>' + rupee(v.price * qty) + '</b></div>'
+      : '');
+}
+
 /* ================= VIEW: product ================= */
 function viewProduct(slug) {
   var p = find(slug);
@@ -460,23 +483,22 @@ function viewProduct(slug) {
   var b    = BR[p.brandId];
   var cat  = CAT[p.category];
   var same = PRODUCTS.filter(function (x) { return x.category === p.category && x.slug !== p.slug; }).slice(0, 5);
-  var pricing =
-    '<div class="big">' + rupee(p.price) + '</div>' +
-    '<div class="sub">' +
-      (p.mrp ? '<s>MRP ' + rupee(p.mrp) + '</s>' +
-               '<span class="offchip">' + p.discount + '% off</span>' : '') +
-      (p.sizes[0] ? '<span>' + esc(p.sizes[0]) + '</span>' : '') +
-    '</div>' +
+  /* Price box is re-rendered whenever the size changes, so the figure always
+     belongs to the option that is actually selected. */
+  var pricing = '<div id="priceBox">' + priceBoxHtml(p.variants[0] || p) + '</div>' +
     '<p class="trade-note">' + esc(b.short) + ' sets its trade rate at onboarding. ' +
     'The price above is the brand’s own listed price.</p>';
 
-  var sizes = p.sizes.length
+  var opts = (p.variants || []).filter(function (v) { return v.title; });
+  var sizes = opts.length > 1
     ? '<div><label style="font-size:12.5px;font-weight:600;letter-spacing:.05em;' +
       'text-transform:uppercase;color:var(--ink-mute)">Size</label>' +
-      '<div class="opt-row" id="sizeRow">' + p.sizes.map(function (s, i) {
-        return '<button class="opt' + (i === 0 ? ' on' : '') + '" data-size="' + esc(s) + '">' + esc(s) + '</button>';
+      '<div class="opt-row" id="sizeRow">' + opts.map(function (v, i) {
+        return '<button class="opt' + (i === 0 ? ' on' : '') + '" data-vi="' + i + '">' +
+               esc(v.title) + '<em>' + rupee(v.price) + '</em></button>';
       }).join('') + '</div></div>'
-    : '';
+    : (opts.length === 1
+        ? '<p class="single-size">Sold as <b>' + esc(opts[0].title) + '</b></p>' : '');
 
   return '<div class="wrap"><div class="pdp">' +
     '<div class="pdp-media">' +
@@ -582,7 +604,7 @@ function viewCart() {
   var groups = BRANDS.map(function (b) {
     var lines = cart.filter(function (l) { return (find(l.id) || {}).brandId === b.id; });
     var sub   = lines.reduce(function (n, l) {
-      var p = find(l.id); return n + p.price * l.qty;
+      var p = find(l.id); return n + variantOf(p, l.size).price * l.qty;
     }, 0);
     return { brand: b, lines: lines, sub: sub, met: sub >= b.openingMin };
   }).filter(function (g) { return g.lines.length; });
@@ -594,21 +616,22 @@ function viewCart() {
 
   function lineRow(l) {
     var p = find(l.id); if (!p) return '';
+    var vr = variantOf(p, l.size);
     return '<div class="cart-line">' +
       '<img src="' + esc(p.img) + '" alt="">' +
       '<div><h4>' + esc(p.title) + '</h4>' +
         '<div class="meta">' + (l.size ? esc(l.size) + ' · ' : '') +
-        rupee(p.price) + ' each' +
-        (p.mrp ? ' · <s style="color:var(--ink-mute)">MRP ' + rupee(p.mrp) + '</s>' +
-                 ' <span style="color:var(--leaf);font-weight:600">' + p.discount +
-                 '% off</span>' : '') + '</div>' +
+        rupee(vr.price) + ' each' +
+        (vr.mrp ? ' · <s style="color:var(--ink-mute)">MRP ' + rupee(vr.mrp) + '</s>' +
+                  ' <span style="color:var(--leaf);font-weight:600">' + vr.discount +
+                  '% off</span>' : '') + '</div>' +
         '<div class="qty" style="margin-top:10px">' +
           '<button data-cq="' + esc(l.key) + '" data-d="-1">&minus;</button>' +
           '<span>' + l.qty + '</span>' +
           '<button data-cq="' + esc(l.key) + '" data-d="1">+</button></div>' +
       '</div>' +
       '<div style="text-align:right"><b style="font-family:var(--serif);font-size:18px">' +
-        rupee(p.price * l.qty) + '</b>' +
+        rupee(vr.price * l.qty) + '</b>' +
         '<div style="font-size:12px;color:var(--ink-mute);margin-top:4px">' +
         l.qty + (l.qty === 1 ? ' unit' : ' units') + '</div>' +
         '<button class="btn btn-plain btn-sm" data-cq="' + esc(l.key) + '" data-d="x" ' +
@@ -845,26 +868,38 @@ function bindView(r) {
   /* product detail: size, qty, add */
   var qtyVal = byId('qtyVal');
   if (qtyVal) {
-    var qty = 1;
-    var size = (q('#sizeRow .opt.on') || {}).getAttribute
-             ? q('#sizeRow .opt.on').getAttribute('data-size') : '';
+    var prod = find(r.path[1]) || {};
+    var opts = (prod.variants || []).filter(function (v) { return v.title; });
+    var pool = opts.length ? opts : [prod];
+    var vi   = 0;
+    var qty  = 1;
+
+    /* Both controls repaint the price box, so size and quantity are always
+       reflected in the figure on screen. */
+    function repaint() {
+      var box = byId('priceBox');
+      if (box) box.innerHTML = priceBoxHtml(pool[vi], qty);
+    }
+
     qa('#sizeRow .opt').forEach(function (o) {
       o.addEventListener('click', function () {
         qa('#sizeRow .opt').forEach(function (x) { x.classList.remove('on'); });
         o.classList.add('on');
-        size = o.getAttribute('data-size');
+        vi = parseInt(o.getAttribute('data-vi'), 10) || 0;
+        repaint();
       });
     });
     qa('[data-q]').forEach(function (b) {
       b.addEventListener('click', function () {
         qty = Math.max(1, qty + parseInt(b.getAttribute('data-q'), 10));
         qtyVal.textContent = qty;
+        repaint();
       });
     });
     var addBtn = byId('addBtn');
     if (addBtn) addBtn.addEventListener('click', function () {
       if (!account) { promptSignup(); return; }
-      addToCart(r.path[1], size, qty);
+      addToCart(r.path[1], (pool[vi] || {}).title || '', qty);
     });
   }
 
@@ -949,7 +984,7 @@ document.addEventListener('click', function (e) {
   var btn = e.target && e.target.closest ? e.target.closest('[data-add]') : null;
   if (!btn) return;
   var p = find(btn.getAttribute('data-add'));
-  if (p) addToCart(p.slug, p.sizes[0] || '', 1);
+  if (p) addToCart(p.slug, defaultVariant(p).title || '', 1);
 });
 
 /* ---------------- boot ---------------- */

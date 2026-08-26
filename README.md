@@ -3,7 +3,7 @@
 A working prototype of the Faire model rebuilt for India: independent Indian
 makers sell wholesale to independent Indian retailers.
 
-**915 products · 12 brands · 26 categories**, seeded from real catalogues.
+**966 products · 12 brands · 26 categories**, seeded from real catalogues.
 
 ## See it live
 
@@ -28,7 +28,7 @@ node serve.js
 
 Then open http://localhost:4321 — no build step needed, `docs/` is ready to serve.
 
-`befach-artifact.html` is the same site as a single self-contained file (11 MB,
+`befach-artifact.html` is the same site as a single self-contained file (12.5 MB,
 every image inlined) — open it directly or host it anywhere, no server needed.
 
 ## Data sources
@@ -40,7 +40,7 @@ every image inlined) — open it directly or host it anywhere, no server needed.
 | Slurrp Farm | 107 | Gurugram, HR | `slurrpfarm.com/products.json` |
 | Conscious Food | 106 | Mumbai, MH | `consciousfood.com/products.json` |
 | Open Secret | 94 | Mumbai, MH | `opensecret.in/products.json` |
-| Two Brothers Organic Farms | 83 | Pune, MH | `twobrothersindiashop.csv` (supplied) |
+| Two Brothers Organic Farms | 134 | Pune, MH | `twobrothersindiashop.com/products.json` |
 | Yogabar | 58 | Bengaluru, KA | `yogabars.in/products.json` |
 | The Whole Truth Foods | 58 | Bengaluru, KA | `thewholetruthfoods.com/llmFeed.json` |
 | Farmley | 50 | Noida, UP | `farmley.com/products.json` |
@@ -157,6 +157,16 @@ Then `npm run build`. Three things to watch:
 
 Checkout is blocked until *every* brand in the cart clears its own opening
 minimum.
+
+**Every purchasable option carries its own price.** `variants` holds each size
+with its own price, mrp and discount, so choosing 500ml vs 1000ml actually moves
+the figure. Storing only the size *names* was a bug: both showed the product
+default.
+
+The supplied Two Brothers CSV is a scrape of their listing page — its size
+options are links to sibling products, not variants, and it has no per-size
+price. Prices and variants now come from their own `products.json`; the CSV is
+still read for the ratings the feed lacks, joined on product handle.
 
 **Pricing is mirrored, never derived.** `price` is what the brand actually
 charges for its default variant and `mrp` is that variant's struck-through

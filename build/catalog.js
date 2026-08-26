@@ -145,8 +145,30 @@ function plainText(html, cap) {
   return cap && t.length > cap ? t.slice(0, cap).replace(/\s+\S*$/, '') + '…' : t;
 }
 
-/* ================= source 1: Two Brothers CSV ================= */
-function twoBrothers() {
+/* The supplied CSV is a scrape of Two Brothers' listing page. It carries
+   ratings the products.json feed does not, but its size options are links to
+   sibling products rather than real variants, and it has no per-size price.
+   So: prices and variants come from the feed, ratings come from here, joined
+   on the product handle. */
+function tbRatings() {
+  const rows = parseCSV(fs.readFileSync(path.join(__dirname, '..', 'twobrothersindiashop.csv'), 'utf8'));
+  const map = {};
+  rows.slice(1).forEach(r => {
+    const handle = (r[2] || '').split('/products/')[1];
+    if (!handle) return;
+    const badge = (r[14] || '').trim();                       // '4.9 | 1631 Reviews'
+    map[handle.trim()] = {
+      rating:  parseFloat(badge.split('|')[0]) || parseFloat(r[16]) || 0,
+      reviews: parseInt((badge.split('|')[1] || '').replace(/[^0-9]/g, ''), 10) || 0,
+      badge:   (r[0] || '').trim(),
+      usp:     (r[13] || '').trim(),
+    };
+  });
+  return map;
+}
+
+/* ================= legacy CSV reader, kept for reference ================= */
+function twoBrothersCsv() {
   const rows = parseCSV(fs.readFileSync(path.join(__dirname, '..', 'twobrothersindiashop.csv'), 'utf8'));
   return rows.slice(1).map((r, i) => {
     const title = (r[8] || '').trim().replace(/\s*\|\s*$/, '');
@@ -275,7 +297,11 @@ function llmFeedSource(file, brandId, prefix) {
       badge: '',
       price: t.price, mrp: t.mrp, discount: t.discount,
       rating: 0, reviews: 0,
-      sizes: /default/i.test(p.pack_size || '') ? [] : [String(p.pack_size).trim()],
+      /* this feed is one row per option, so a kept row is a single variant */
+      variants: [{
+        title: /default/i.test(p.pack_size || '') ? '' : String(p.pack_size).trim(),
+        price: t.price, mrp: t.mrp, discount: t.discount,
+      }],
       img: p.image_url, img2: '',
     };
   });
@@ -318,7 +344,7 @@ function shopifySource(file, brandId, prefix, opt) {
 
     const hay = clean + ' ' + usp + ' ' + plainText(p.body_html);
 
-    return {
+    const out = {
       id: prefix + '-' + String(i + 1).padStart(3, '0'),
       slug: slug(p.handle) || (prefix + '-product-' + (i + 1)),
       title, usp,
@@ -330,22 +356,36 @@ function shopifySource(file, brandId, prefix, opt) {
       badge,
       price: t.price, mrp: t.mrp, discount: t.discount,
       rating: 0, reviews: 0,                 // these feeds carry no review data
-      /* Real sizes only — "Pack of 4" and "500g x 3" are multipacks of the
-         base unit, not options a retailer picks between. */
-      sizes: (function () {
-        const all = priced.map(x => decode(x.title))
-          .filter(s => s && !/^default title$/i.test(s));
-        const real = all.filter(s => !/pack of|\bx\s*\d|\bpk\b/i.test(s));
-        return (real.length ? real : all).slice(0, 2);
-      }()),
+      /* Every purchasable option with its own price, so picking a size on the
+         product page actually moves the figure. Storing only the size names
+         was the bug: 500ml and 1000ml showed the same price. */
+      variants: priced.slice(0, 8).map(x => {
+        const vt = pricing(x.price, x.compare_at_price);
+        return { title: decode(x.title), price: vt.price, mrp: vt.mrp, discount: vt.discount };
+      }).filter(x => !/^default title$/i.test(x.title) || priced.length === 1),
       img:  shrink((p.images[0] || {}).src),
       img2: shrink((p.images[1] || {}).src),
     };
+    return opt.after ? opt.after(out, p) : out;
   }).filter(Boolean);
 }
 
 /* ================= assemble ================= */
-const products = twoBrothers()
+const TB_META = tbRatings();
+
+const products = shopifySource('tb-raw.json', 'two-brothers', 'tb', {
+    stripName: /^Two Brothers\s+/gi,
+    /* fold the CSV's ratings and straplines back in, matched on handle */
+    after: (out, p) => {
+      const m = TB_META[p.handle];
+      if (!m) return out;
+      out.rating  = m.rating;
+      out.reviews = m.reviews;
+      if (m.badge) out.badge = m.badge;
+      if (m.usp)   out.usp   = m.usp;
+      return out;
+    },
+  })
   .concat(shopifySource('happilo-raw.json', 'happilo', 'hp', {
     stripName: /^Happilo\s+|\s*\|\s*Happilo\s*$/gi,
   }))
