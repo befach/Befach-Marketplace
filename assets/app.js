@@ -178,6 +178,25 @@ function grid(list, cls) {
   return '<div class="prod-grid ' + (cls || '') + '">' + list.map(card).join('') + '</div>';
 }
 
+/* Browse can hold every product in the catalogue. Rendering ~900 cards in one
+   pass cost 2s and 20k DOM nodes, on a page 169,000px tall — so page it. */
+var PAGE_SIZE = 60;
+var paged = { list: [], shown: 0 };
+
+function gridPaged(list) {
+  paged = { list: list, shown: Math.min(PAGE_SIZE, list.length) };
+  if (!list.length) return grid(list);
+  return '<div class="prod-grid" id="prodGrid">' +
+      list.slice(0, paged.shown).map(card).join('') + '</div>' +
+    (list.length > paged.shown
+      ? '<div class="more-wrap">' +
+          '<button class="btn btn-ghost btn-lg" id="moreBtn">Show 60 more</button>' +
+          '<p class="more-count" id="moreCount">Showing ' + paged.shown +
+          ' of ' + list.length + '</p>' +
+        '</div>'
+      : '');
+}
+
 /* ---------------- shared chrome ---------------- */
 function navCats() {
   var hash = location.hash;
@@ -427,7 +446,7 @@ function viewBrowse(params) {
           opt('price-desc', 'Price: high to low', sort) +
         '</select></div>' +
       (chips ? '<div class="chips">' + chips + '</div>' : '') +
-      grid(list) +
+      gridPaged(list) +
     '</section></div>';
 }
 function opt(v, label, cur) {
@@ -794,14 +813,6 @@ function render() {
 
 /* ================= per-view bindings ================= */
 function bindView(r) {
-  /* add-to-order buttons on every card */
-  qa('[data-add]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var p = find(btn.getAttribute('data-add'));
-      addToCart(p.slug, p.sizes[0] || '', 1);
-    });
-  });
-
   /* browse: filters + sort + chips */
   qa('[data-f]').forEach(function (box) {
     box.addEventListener('change', function () {
@@ -882,6 +893,16 @@ function bindView(r) {
     });
   });
 
+  /* show more */
+  var moreBtn = byId('moreBtn');
+  if (moreBtn) moreBtn.addEventListener('click', function () {
+    var next = paged.list.slice(paged.shown, paged.shown + PAGE_SIZE);
+    byId('prodGrid').insertAdjacentHTML('beforeend', next.map(card).join(''));
+    paged.shown += next.length;
+    byId('moreCount').textContent = 'Showing ' + paged.shown + ' of ' + paged.list.length;
+    if (paged.shown >= paged.list.length) moreBtn.parentNode.removeChild(moreBtn);
+  });
+
   /* signup */
   var form = byId('joinForm');
   if (form) form.addEventListener('submit', function (e) {
@@ -916,6 +937,14 @@ byId('q').addEventListener('input', function (e) {
 });
 
 byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' Indian makers…';
+
+/* Delegated so cards appended by Show more work without rebinding. */
+document.addEventListener('click', function (e) {
+  var btn = e.target && e.target.closest ? e.target.closest('[data-add]') : null;
+  if (!btn) return;
+  var p = find(btn.getAttribute('data-add'));
+  if (p) addToCart(p.slug, p.sizes[0] || '', 1);
+});
 
 /* ---------------- boot ---------------- */
 window.BefachUI = { closeModal: closeModal, signIn: signIn };
