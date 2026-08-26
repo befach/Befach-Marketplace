@@ -23,10 +23,17 @@ const slug  = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^
 /* order matters: first regex that matches wins */
 const RULES = [
   ['home-ritual',     /dhoop|incense|agarbatti/i],
-  ['gifting',         /gift|celebration|hamper|festive|rakhi/i],
+  ['gifting',         /gift|celebration|hamper|festive|rakhi|\bbox\b|chocolate edit|treats/i],
   /* combo titles list their contents, so they must be caught before
      sugar / flour / rice / nuts pull them apart */
   ['combos',          /\bcombo\b|\(\s*\d+\s*pack\s*\)|multipack|value pack/i],
+  /* bars before snacks-sweets (/bar\b/) and before protein-powder, so a
+     "20g Protein Bar" lands as a bar rather than a powder */
+  ['bars',            /protein bar|snack bar|energy bar|granola bar|\bbars?\b|date bites|date melts|munch/i],
+  /* breakfast before trail-mix, which also claims /muesli/ */
+  ['breakfast',       /muesli|granola|\boats?\b|porridge|cereal|breakfast/i],
+  ['protein-powder',  /whey|protein powder|protein shake|plant protein|kids protein|vegan protein|protein sachet|isolate|casein|fermented yeast protein|\bmass gainer\b/i],
+  ['supplements',     /creatine|vitamin|\bfibre?\b|mineral|kadha|radiant skin|skin pack|collagen|capsule|tablet|effervescent|shilajit|electrolyte|melts?\s*strip|gummies|liposomal|glutathione|apple cider|\bacv\b|omega|multivitamin|probiotic|\bjuice\b|sea buckthorn|skin fuel/i],
   ['ghee-dairy',      /ghee|colostrum/i],
   ['oils',            /\boil\b|oil,|oil i|oil spray/i],
   /* wellness drink mixes must beat the generic /mix/ in trail-mix */
@@ -36,7 +43,7 @@ const RULES = [
   ['makhana',         /makhana|fox nut|foxnut|phool makhana|lotus seed|chickpea|party snack|namkeen/i],
   ['dates',           /\bdates?\b|medjoul|kimia|safawi|ajwa|zahidi|kalmi|anjeer|abjosh/i],
   ['dried-fruit',     /raisin|prune|apricot|cranberr|blueberr|berries|dried|kishmish/i],
-  ['trail-mix',       /trail mix|nut mix|nutmix|supermix|super mix|panchmewa|medley|party mix|muesli|\bmix\b/i],
+  ['trail-mix',       /trail mix|nut mix|nutmix|supermix|super mix|panchmewa|panchmeva|medley|party mix|muesli|\bmix\b/i],
   ['seeds',           /chia|flax|pumpkin seed|sunflower seed|\bseeds\b/i],
   ['nut-butters',     /peanut butter|almond butter|nut butter/i],
   ['nuts',            /almond|cashew|walnut|pistachio|pecan|brazil nut|peanut|\bnuts\b|kernel/i],
@@ -44,13 +51,17 @@ const RULES = [
   ['honey-preserves', /honey|gulkand|murabba/i],
   ['spices',          /haldi|turmeric|saffron|chilli|salt|masala/i],
   ['pickles',         /pickle|ketchup/i],
-  ['grains-dals',     /rice|\bdal\b|rajma|\bgram\b|moong|besan/i],
+  ['grains-dals',     /rice|\bdal\b|rajma|\bgram\b|moong|besan|quinoa|millet/i],
   ['snacks-sweets',   /laddoo|chakli|chips|mathri|mathari|katli|modak|barfi|bar\b|bites|sticks|krunch/i],
 ];
 
 const CATS = {
   'nuts':            { name:'Nuts & Kernels',        tagline:'Almonds, cashews, walnuts and pistachios',            hi:'मेवा' },
   'combos':          { name:'Combo Packs',           tagline:'Multi-item bundles that ship as one SKU',             hi:'कॉम्बो' },
+  'bars':            { name:'Bars & Energy Bites',   tagline:'Protein bars, date bites and on-the-go snacks',       hi:'बार' },
+  'breakfast':       { name:'Muesli, Oats & Granola',tagline:'Wholegrain breakfast, ready in a bowl',               hi:'नाश्ता' },
+  'protein-powder':  { name:'Protein & Shakes',      tagline:'Whey, plant protein and ready-to-drink',              hi:'प्रोटीन' },
+  'supplements':     { name:'Supplements & Actives', tagline:'Collagen, capsules, melts and electrolytes',          hi:'सप्लीमेंट' },
   'dates':           { name:'Dates & Anjeer',        tagline:'Medjoul, Kimia, Safawi and Afghani figs',             hi:'खजूर' },
   'dried-fruit':     { name:'Dried Fruit & Berries', tagline:'Raisins, cranberries, apricots and prunes',           hi:'सूखे मेवे' },
   'seeds':           { name:'Seeds & Superfoods',    tagline:'Chia, flax, pumpkin and sunflower',                   hi:'बीज' },
@@ -83,11 +94,25 @@ const VALUE_RULES = [
   ['high-protein', /protein|fiber rich|fiber-rich|rich in protein|more fiber|rich in fibre|high fibre/i],
   ['superfood',    /superfood|super food|omega-3|omega 3|antioxidant|anti-oxidant|chia|flax|makhana|fox nut|nutrient-rich/i],
   ['low-gi',       /low gi|low-gi|glycemic|glycaemic|diabetic|diabeat/i],
+  ['vegan',        /vegan|plant-based|plant based|dairy-free|dairy free/i],
 ];
 
-function categorise(text) {
-  const hit = RULES.find(([, re]) => re.test(text));
-  return hit ? hit[0] : 'snacks-sweets';
+/* Rules driven by claim words rather than product nouns. Marketing copy says
+   "rich in plant protein" about roasted makhana, so these are title-only —
+   letting them read the body filed Farmley's makhana under protein powder. */
+const CLAIM_DRIVEN = new Set(['protein-powder', 'supplements', 'gifting', 'combos', 'bars']);
+
+/* Two passes. Some titles name only a flavour — Farmley's "Cheesy Cheddar -
+   Pack of 4" is roasted makhana, and only the description says so. So if the
+   title yields nothing, consult the body, but only for product-form rules. */
+function categorise(primary, secondary) {
+  const hit = RULES.find(([, re]) => re.test(primary));
+  if (hit) return hit[0];
+  if (secondary) {
+    const hit2 = RULES.find(([k, re]) => !CLAIM_DRIVEN.has(k) && re.test(secondary));
+    if (hit2) return hit2[0];
+  }
+  return 'snacks-sweets';
 }
 function valuesFor(text) {
   return VALUE_RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
@@ -162,6 +187,14 @@ function splitTopLevel(str) {
   return out.map(s => s.trim()).filter(Boolean);
 }
 
+/* Some stores write no bullets at all, so fall back to the opening sentence. */
+function firstSentence(html) {
+  const txt = decode(String(html || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  if (!txt) return '';
+  const s = txt.split(/(?<=[.!?])\s+/)[0] || txt;
+  return s.length > 78 ? s.slice(0, 75).replace(/\s+\S*$/, '') + '…' : s;
+}
+
 /* Shopify serves resized images by filename suffix */
 const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_300x300$1$3');
 
@@ -172,9 +205,14 @@ function shopifySource(file, brandId, prefix, opt) {
     const priced = p.variants.filter(v => +v.price > 0);
     if (!priced.length || !p.images.length) return null;
 
-    // biggest variant anchors the shelf price
-    const v   = priced.slice().sort((a, b) => +b.price - +a.price)[0];
-    const mrp = Math.round(+(v.compare_at_price || v.price));
+    /* Anchor on the CHEAPEST priced variant — the base unit.
+       These stores sell multipacks as variants ("Pack of 1" ... "Pack of 6",
+       "500g x 3"), so taking the dearest one would list a 989-rupee product
+       at 5935 and halve that into a nonsense wholesale rate. Retailers buy
+       cases of the base SKU; trade() derives the case pack from there. */
+    const v   = priced.slice().sort((a, b) => +a.price - +b.price)[0];
+    const mrp = Math.round(+(v.compare_at_price && +v.compare_at_price > +v.price
+                             ? v.compare_at_price : v.price));
     if (!mrp) return null;
 
     const clean = decode(p.title).replace(opt.stripName || /^$/, '').replace(/\s+/g, ' ').trim();
@@ -182,11 +220,12 @@ function shopifySource(file, brandId, prefix, opt) {
        in parentheses and must not be torn in half. */
     const bits  = splitTopLevel(clean);
     const title = opt.title ? opt.title(clean)
-                : (bits[0].replace(/s*[-–]s*d+s*(gms?|kgs?|ml|l)s*$/i, '').trim() || clean);
+                : (bits[0].replace(/\s*[-–]\s*\d+\s*(gms?|kgs?|ml|l)\s*$/i, '').trim() || clean);
 
     const usp = (opt.usp && opt.usp(p, clean)) ||
                 bits.slice(1, 3).join(' | ').replace(/\s+/g, ' ').slice(0, 72) ||
                 bullets(p.body_html, 2).join(' | ').slice(0, 72) ||
+                firstSentence(p.body_html) ||
                 (p.product_type ? p.product_type + ' · premium grade' : 'Premium grade, sorted by hand');
 
     const tags = (p.tags || []).join(' ');
@@ -205,14 +244,21 @@ function shopifySource(file, brandId, prefix, opt) {
       slug: slug(p.handle) || (prefix + '-product-' + (i + 1)),
       title, usp,
       brandId,
-      category: categorise(clean + ' ' + (p.product_type || '')),
+      category: categorise(clean + ' ' + (p.product_type || ''),
+                           decode(p.body_html || '').replace(/<[^>]+>/g, ' ').slice(0, 400)),
       values: valuesFor(hay),
       badge,
       mrp, wholesale: t.wholesale, casePack: t.casePack,
       margin: Math.round((1 - t.wholesale / mrp) * 100),
       rating: 0, reviews: 0,                 // these feeds carry no review data
-      sizes: priced.map(x => decode(x.title))
-        .filter(s => s && !/^default title$/i.test(s)).slice(0, 2),
+      /* Real sizes only — "Pack of 4" and "500g x 3" are multipacks of the
+         base unit, not options a retailer picks between. */
+      sizes: (function () {
+        const all = priced.map(x => decode(x.title))
+          .filter(s => s && !/^default title$/i.test(s));
+        const real = all.filter(s => !/pack of|\bx\s*\d|\bpk\b/i.test(s));
+        return (real.length ? real : all).slice(0, 2);
+      }()),
       img:  shrink((p.images[0] || {}).src),
       img2: shrink((p.images[1] || {}).src),
     };
@@ -242,6 +288,24 @@ const products = twoBrothers()
       : /flour|atta/i.test(clean)         ? 'Low GI flour | Diabetic friendly'
       : /shakkar|shakker|jaggery/i.test(clean) ? 'Low GI jaggery powder | Diabetic friendly'
       : 'Glycaemic index under 45 | Diabetic friendly',
+  }))
+  .concat(shopifySource('yogabars-raw.json', 'yogabars', 'yb', {
+    stripName: /^Yogabar\s+/gi,
+  }))
+  .concat(shopifySource('wellbeing-raw.json', 'wellbeing', 'wb', {
+    /* memberships and access passes are not stock a shop can put on a shelf */
+    keep: p => {
+      const t = (p.title || '') + ' ' + (p.product_type || '');
+      /* shakers, gym bags, lab tests and freebies are not shelf stock */
+      if (/shaker|gym bag|blood test|membership|gift card|subscription|t-shirt/i.test(t)) return false;
+      if (/\bsamplers?\b|\bsample\b/i.test(p.title || '')) return false;
+      if (/^free\b/i.test((p.title || '').trim())) return false;
+      return true;
+    },
+    stripName: /^Wellbeing Nutrition\s+/gi,
+  }))
+  .concat(shopifySource('farmley-raw.json', 'farmley', 'fm', {
+    stripName: /^Farmley\s+/gi,
   }));
 
 // slugs must stay unique across sources

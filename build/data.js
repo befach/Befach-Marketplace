@@ -43,6 +43,48 @@ const brands = [
     prep: 'FSSAI licensed · Own manufacturing unit · Sales office in New Delhi',
     accent: '#25406B',
   },
+  {
+    id: 'yogabars', name: 'Yogabar', short: 'Yogabar',
+    city: 'Bengaluru', state: 'Karnataka', since: 2014,
+    tagline: 'Protein bars, muesli and breakfast for people who read labels',
+    story: 'Built on the bet that Indian shoppers would pay for a snack bar with a ' +
+           'readable ingredient list. The range starts at protein and muesli bars and ' +
+           'now runs through rolled oats, dark-chocolate muesli and whey. Fast-moving, ' +
+           'single-serve, and priced for impulse — the sort of stock that turns over ' +
+           'at a counter rather than sitting on a shelf.',
+    values: ['high-protein', 'no-refined', 'vegan'],
+    openingMin: 12000, reorderMin: 6000, leadDays: '3-5', shipsFrom: 'Bengaluru, KA',
+    prep: 'FSSAI licensed · Modern trade and q-commerce listed · Pan-India',
+    accent: '#C0562A',
+  },
+  {
+    id: 'wellbeing', name: 'Wellbeing Nutrition', short: 'Wellbeing',
+    city: 'Mumbai', state: 'Maharashtra', since: 2019,
+    tagline: 'Clinically formulated supplements in formats people actually finish',
+    story: 'A supplements house that competes on delivery format as much as on the ' +
+           'actives — oral thin strips that dissolve on the tongue, slow-release ' +
+           'capsules, effervescents and marine collagen. The widest range on Befach ' +
+           'by some distance, and the one that needs a pharmacist-style conversation ' +
+           'at the counter rather than a shelf tag.',
+    values: ['superfood', 'high-protein', 'vegan'],
+    openingMin: 20000, reorderMin: 10000, leadDays: '4-6', shipsFrom: 'Mumbai, MH',
+    prep: 'FSSAI licensed · Third-party lab tested · Clinically formulated range',
+    accent: '#2F5D50',
+  },
+  {
+    id: 'farmley', name: 'Farmley', short: 'Farmley',
+    city: 'Noida', state: 'Uttar Pradesh', since: 2017,
+    tagline: 'Dates, seeds and roasted makhana, packed for modern retail',
+    story: 'Started in dry fruit sourcing and moved up the chain into branded snacking. ' +
+           'Date bites, flavoured roasted makhana and seed mixes, built for the shelf ' +
+           'rather than the sack — consistent grammage, printed dates, retail-ready ' +
+           'cartons. Useful stock for a shop that wants dry fruit without running a ' +
+           'weighing scale.',
+    values: ['no-refined', 'superfood', 'high-protein'],
+    openingMin: 10000, reorderMin: 5000, leadDays: '4-6', shipsFrom: 'Noida, UP',
+    prep: 'FSSAI licensed · Retail-ready packaging · Pan-India distribution',
+    accent: '#7A5C9E',
+  },
 ];
 
 /* Illustrative pipeline brands showing marketplace shape. Fictional. */
@@ -65,6 +107,7 @@ const values = [
   { key: 'gluten-free',  label: 'Gluten-free',        hi: 'ग्लूटन रहित', desc: 'Millet, nut and seed based' },
   { key: 'cold-pressed', label: 'Traditionally made', hi: 'पारंपरिक',   desc: 'Stone-ground, wood-pressed, bilona' },
   { key: 'small-batch',  label: 'Small batch',        hi: 'हस्तनिर्मित', desc: 'Made by hand, in limited runs' },
+  { key: 'vegan',        label: 'Vegan',              hi: 'शाकाहारी',   desc: 'No dairy or animal-derived ingredients' },
 ];
 
 /* Two Brothers images come from the CSV at 1200px — pull them down to card size. */
