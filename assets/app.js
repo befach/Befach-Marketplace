@@ -1,12 +1,12 @@
 /* ============================================================
-   Haat — client-side prototype
+   Befach — client-side prototype
    Hash router + catalogue views + trade-account cart.
    Data comes from assets/data.js (generated from the CSV).
    ============================================================ */
 (function () {
 'use strict';
 
-var D          = window.HAAT;
+var D          = window.BEFACH;
 var PRODUCTS   = D.products;
 var CATEGORIES = D.categories;
 var BRANDS     = D.brands;
@@ -21,8 +21,8 @@ var VAL = {};  VALUES.forEach(function (v) { VAL[v.key] = v; });
 function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } }
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
-var cart    = load('haat.cart', []);
-var account = load('haat.account', null);   // null = pricing locked, Faire-style
+var cart    = load('befach.cart', []);
+var account = load('befach.account', null);   // null = pricing locked, Faire-style
 
 /* ---------------- helpers ---------------- */
 var inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
@@ -87,7 +87,7 @@ function addToCart(id, size, qty) {
   var key = id + '|' + (size || '');
   var line = cart.filter(function (l) { return l.key === key; })[0];
   if (line) line.qty += qty; else cart.push({ key: key, id: id, size: size || '', qty: qty });
-  save('haat.cart', cart);
+  save('befach.cart', cart);
   syncChrome();
   var p = find(id);
   toast(p.title.slice(0, 34) + ' · ' + qty + ' case' + (qty > 1 ? 's' : '') + ' added');
@@ -95,7 +95,7 @@ function addToCart(id, size, qty) {
 function setQty(key, qty) {
   cart = cart.filter(function (l) { return l.key !== key || qty > 0; });
   cart.forEach(function (l) { if (l.key === key) l.qty = qty; });
-  save('haat.cart', cart);
+  save('befach.cart', cart);
   syncChrome();
   render();
 }
@@ -112,27 +112,27 @@ function syncChrome() {
 function promptSignup() {
   openModal(
     '<h3>Wholesale pricing is for trade accounts</h3>' +
-    '<p>Haat is a business-to-business market. Open a free retailer account to see wholesale rates, ' +
+    '<p>Befach is a business-to-business market. Open a free retailer account to see wholesale rates, ' +
     'unlock 60-day payment terms and place your first order with no minimum.</p>' +
-    '<a href="#/join" class="btn btn-ink btn-block btn-lg" onclick="HaatUI.closeModal()">Open a retailer account</a>' +
-    '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="HaatUI.closeModal()">Not now</button>'
+    '<a href="#/join" class="btn btn-ink btn-block btn-lg" onclick="BefachUI.closeModal()">Open a retailer account</a>' +
+    '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="BefachUI.closeModal()">Not now</button>'
   );
 }
 function signIn(shop, city) {
   account = { shop: shop || 'Demo Retail', city: city || 'Bengaluru' };
-  save('haat.account', account);
+  save('befach.account', account);
   syncChrome();
   toast('Trade account active · wholesale pricing unlocked');
 }
 function signOut() {
   account = null; cart = [];
-  save('haat.account', null); save('haat.cart', []);
+  save('befach.account', null); save('befach.cart', []);
   syncChrome(); location.hash = '#/'; render();
 }
 
 /* ---------------- product card ---------------- */
 function card(p) {
-  var b   = BR[p.brandId] || { short: 'Haat' };
+  var b   = BR[p.brandId] || { short: 'Befach' };
   var tag = p.badge ? '<span class="tag ' + tagClass(p.badge) + '">' + esc(p.badge) + '</span>' : '';
   var alt = p.img2 ? '<img class="alt" src="' + esc(p.img2) + '" alt="" loading="lazy">' : '';
 
@@ -213,7 +213,7 @@ function viewHome() {
     '<div>' +
       '<span class="eyebrow">Wholesale, made in India</span>' +
       '<h1>Stock your shelves with what <em>India actually makes</em>.</h1>' +
-      '<p class="hero-sub">Haat puts independent Indian makers — farm kitchens, cold-press mills, ' +
+      '<p class="hero-sub">Befach puts independent Indian makers — farm kitchens, cold-press mills, ' +
       'weavers and potters — in front of the shops that should be carrying them. ' +
       'Wholesale rates, 60-day terms, one order across every brand.</p>' +
       '<div class="hero-cta">' +
@@ -232,7 +232,7 @@ function viewHome() {
 
   '<section class="trust"><div class="wrap trust-grid">' +
     trustItem('M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'Pay 60 days later',
-      'Take stock now, pay after it has sold. Standard on every Haat order.') +
+      'Take stock now, pay after it has sold. Standard on every Befach order.') +
     trustItem('M20 6 9 17l-5-5', 'Free returns on openers',
       'Your first order from any brand is returnable. Trying a brand costs nothing.') +
     trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'One cart, every brand',
@@ -264,7 +264,7 @@ function viewHome() {
     return '<section class="' + (i === 0 ? 'sec' : 'sec-tight') + '"><div class="wrap">' +
       '<div class="spot jaali"><div class="spot-inner' + (i % 2 ? ' flip' : '') + '">' +
         '<div class="spot-copy">' +
-          '<span class="eyebrow">' + (i === 0 ? 'Brand in focus' : 'Also on Haat') + '</span>' +
+          '<span class="eyebrow">' + (i === 0 ? 'Brand in focus' : 'Also on Befach') + '</span>' +
           '<h2>' + esc(b.name) + '</h2>' +
           '<p>' + esc(b.story) + '</p>' +
           '<div class="spot-meta">' +
@@ -348,7 +348,7 @@ function viewBrowse(params) {
             : 'All products';
   var sub = cats.length === 1 ? CAT[cats[0]].tagline
           : brs.length  === 1 ? BR[brs[0]].tagline
-          : 'Across every Indian maker on Haat';
+          : 'Across every Indian maker on Befach';
 
   /* filter rail */
   function fopts(group, items, active) {
@@ -637,7 +637,7 @@ function viewJoin() {
       '<span class="eyebrow">For retailers</span>' +
       '<h1>Open your trade account</h1>' +
       '<p>Free, takes two minutes. Once you are verified you will see wholesale rates ' +
-      'across every brand on Haat.</p>' +
+      'across every brand on Befach.</p>' +
       '<form id="joinForm">' +
         '<div class="field"><label for="shop">Shop name</label>' +
           '<input id="shop" required placeholder="e.g. Gopal Stores"></div>' +
@@ -676,7 +676,7 @@ function viewSell() {
   return '<section class="hero"><div class="wrap hero-grid">' +
     '<div><span class="eyebrow">For makers</span>' +
       '<h1>Your craft deserves <em>better shelves</em>.</h1>' +
-      '<p class="hero-sub">Haat gets your products in front of thousands of vetted Indian retailers. ' +
+      '<p class="hero-sub">Befach gets your products in front of thousands of vetted Indian retailers. ' +
       'We handle discovery, credit risk, invoicing and returns. You handle the making.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Apply to sell</a>' +
@@ -690,7 +690,7 @@ function viewSell() {
   '</div></section>' +
 
   '<section class="sec"><div class="wrap">' +
-    '<div class="sec-head"><div><h2>How Haat works for a brand</h2>' +
+    '<div class="sec-head"><div><h2>How Befach works for a brand</h2>' +
     '<p>Three steps from application to your first wholesale order.</p></div></div>' +
     '<div class="steps">' +
       '<div class="step"><div class="step-n">01</div><h4>Apply and get verified</h4>' +
@@ -700,7 +700,7 @@ function viewSell() {
       '<p>A CSV of products, wholesale rates, MRP and case packs. We build the storefront, ' +
       'the photography grid and the search listings for you.</p></div>' +
       '<div class="step"><div class="step-n">03</div><h4>We carry the risk</h4>' +
-      '<p>You are paid on dispatch. Haat extends the 60-day terms to the retailer and absorbs ' +
+      '<p>You are paid on dispatch. Befach extends the 60-day terms to the retailer and absorbs ' +
       'any default. Returns on opening orders are on us too.</p></div>' +
     '</div>' +
   '</div></section>' +
@@ -709,7 +709,7 @@ function viewSell() {
     '<div class="spot jaali"><div class="spot-inner">' +
       '<div class="spot-copy"><span class="eyebrow">The economics</span>' +
         '<h2>Built so a small maker can actually say yes.</h2>' +
-        '<p>No listing fees, no subscription, no ad auction. Haat only earns when you sell, ' +
+        '<p>No listing fees, no subscription, no ad auction. Befach only earns when you sell, ' +
         'and earns far less once a retailer is yours.</p>' +
         '<div class="spot-meta">' +
           '<div><span>New retailer</span><b>15%</b></div>' +
@@ -726,7 +726,7 @@ function viewSell() {
 function notFound() {
   return '<div class="wrap"><div class="empty"><h3>Page not found</h3>' +
     '<p>That link does not lead anywhere yet.</p>' +
-    '<a href="#/" class="btn btn-ink btn-lg" style="margin-top:20px">Back to Haat</a></div></div>';
+    '<a href="#/" class="btn btn-ink btn-lg" style="margin-top:20px">Back to Befach</a></div></div>';
 }
 
 /* ================= router ================= */
@@ -850,7 +850,7 @@ function bindView(r) {
       '<button class="btn btn-ink btn-block btn-lg" id="okBtn">Done</button>'
     );
     byId('okBtn').addEventListener('click', function () {
-      cart = []; save('haat.cart', cart); closeModal();
+      cart = []; save('befach.cart', cart); closeModal();
       syncChrome(); location.hash = '#/'; render();
     });
   });
@@ -891,7 +891,7 @@ byId('q').addEventListener('input', function (e) {
 byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' Indian makers…';
 
 /* ---------------- boot ---------------- */
-window.HaatUI = { closeModal: closeModal, signIn: signIn };
+window.BefachUI = { closeModal: closeModal, signIn: signIn };
 window.addEventListener('hashchange', function () { render(); window.scrollTo(0, 0); });
 render();
 
