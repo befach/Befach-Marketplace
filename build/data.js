@@ -85,11 +85,88 @@ const brands = [
     prep: 'FSSAI licensed · Retail-ready packaging · Pan-India distribution',
     accent: '#7A5C9E',
   },
+  {
+    id: 'wholetruth', name: 'The Whole Truth Foods', short: 'Whole Truth',
+    city: 'Bengaluru', state: 'Karnataka', since: 2019,
+    tagline: 'Protein bars and cocoa with the full ingredient list on the front',
+    story: 'Built the brand around printing the entire ingredient list on the front ' +
+           'of the pack, in full, with nothing hidden behind "natural flavours". ' +
+           'Date-sweetened protein bars, dark cocoa and nut butters. Sells to people ' +
+           'who read labels, which makes it easy stock to explain across a counter.',
+    values: ['no-refined', 'high-protein', 'organic'],
+    openingMin: 12000, reorderMin: 6000, leadDays: '4-6', shipsFrom: 'Bengaluru, KA',
+    prep: 'FSSAI licensed · Full ingredient disclosure · No added sugar range',
+    accent: '#1F1B18',
+  },
+  {
+    id: 'rage', name: 'Rage Coffee', short: 'Rage',
+    city: 'New Delhi', state: 'Delhi', since: 2018,
+    tagline: 'Plant-vitamin instant coffee in flavours that move at a counter',
+    story: 'Instant coffee treated as an impulse category rather than a pantry one — ' +
+           'flavoured blends fortified with plant vitamins, in sachets and small jars. ' +
+           'High rotation, small footprint, and the sort of thing a cafe or a corner ' +
+           'store can stock without committing shelf depth.',
+    values: ['vegan', 'no-refined'],
+    openingMin: 8000, reorderMin: 4000, leadDays: '3-5', shipsFrom: 'New Delhi, DL',
+    prep: 'FSSAI licensed · Sachet and jar formats · Pan-India distribution',
+    accent: '#6B3FA0',
+  },
+  {
+    id: 'slurrp', name: 'Slurrp Farm', short: 'Slurrp Farm',
+    city: 'Gurugram', state: 'Haryana', since: 2016,
+    tagline: 'Millet-first food for children, made to survive a fussy eater',
+    story: 'Ragi, jowar and bajra rebuilt into the shapes children will actually eat — ' +
+           'pancake mixes, dosa batter, cookies, noodles and instant cereal. Aimed at ' +
+           'parents who want the millet without the argument. Strong repeat rates and ' +
+           'a clear shelf story for any shop with a kids section.',
+    values: ['organic', 'no-refined', 'gluten-free'],
+    openingMin: 10000, reorderMin: 5000, leadDays: '4-6', shipsFrom: 'Gurugram, HR',
+    prep: 'FSSAI licensed · Millet-based range · No refined flour or sugar',
+    accent: '#3F6B4A',
+  },
+  {
+    id: 'conscious', name: 'Conscious Food', short: 'Conscious Food',
+    city: 'Mumbai', state: 'Maharashtra', since: 1990,
+    tagline: 'One of India’s oldest organic pantry brands',
+    story: 'Working with organic farmer groups since 1990, long before the category had ' +
+           'a name in India. The widest pantry range on Befach — pulses, flours, ' +
+           'cold-pressed oils, whole spices, rice and sweeteners. The brand a shop ' +
+           'stocks when it wants one supplier for the whole organic aisle.',
+    values: ['organic', 'native-seed', 'cold-pressed'],
+    openingMin: 12000, reorderMin: 6000, leadDays: '5-7', shipsFrom: 'Mumbai, MH',
+    prep: 'FSSAI licensed · Certified organic range · Farmer-group sourcing',
+    accent: '#5A7A3F',
+  },
+  {
+    id: 'opensecret', name: 'Open Secret', short: 'Open Secret',
+    city: 'Mumbai', state: 'Maharashtra', since: 2019,
+    tagline: 'Nut-based cookies and chips, junk food rebuilt from the inside',
+    story: 'Takes the snacks children already want — cookies, chips, namkeen — and ' +
+           'rebuilds them on a nut base instead of refined flour. Calls it "unjunking". ' +
+           'Sits between the biscuit aisle and the health aisle, which is a useful ' +
+           'place to be for a shop that serves both.',
+    values: ['no-refined', 'high-protein', 'gluten-free'],
+    openingMin: 10000, reorderMin: 5000, leadDays: '3-5', shipsFrom: 'Mumbai, MH',
+    prep: 'FSSAI licensed · Nut-based formulations · No maida or palm oil',
+    accent: '#C0562A',
+  },
+  {
+    id: 'nourish', name: 'Nourish Organics', short: 'Nourish',
+    city: 'New Delhi', state: 'Delhi', since: 2010,
+    tagline: 'Granola, puffs and clean-label snacking since 2010',
+    story: 'One of the earlier entrants in Indian clean-label snacking — granola, ' +
+           'protein puffs, seed bars and popped snacks, most of it gluten-free and ' +
+           'sweetened with dates or jaggery. A compact, fast-moving range that fills ' +
+           'the impulse shelf without much SKU management.',
+    values: ['organic', 'gluten-free', 'vegan'],
+    openingMin: 8000, reorderMin: 4000, leadDays: '4-6', shipsFrom: 'New Delhi, DL',
+    prep: 'FSSAI licensed · Gluten-free facility · Date and jaggery sweetened',
+    accent: '#C08A2E',
+  },
 ];
 
 /* Illustrative pipeline brands showing marketplace shape. Fictional. */
 const pipeline = [
-  { id: 'nilgiri-press', name: 'Nilgiri Press',  city: 'Coonoor, TN',   cat: 'Tea & Coffee', accent: '#2F5D50' },
   { id: 'kutch-clay',    name: 'Kutch Clay Co.', city: 'Bhuj, GJ',      cat: 'Home & Table', accent: '#B7412C' },
   { id: 'aranya-soap',   name: 'Aranya Botanics',city: 'Kochi, KL',     cat: 'Bath & Body',  accent: '#7A5C9E' },
   { id: 'chanderi-loom', name: 'Chanderi Loom',  city: 'Chanderi, MP',  cat: 'Textiles',     accent: '#25406B' },

@@ -3,7 +3,7 @@
 A working prototype of the Faire model rebuilt for India: independent Indian
 makers sell wholesale to independent Indian retailers.
 
-**469 products · 6 brands · 24 categories**, seeded from real catalogues.
+**915 products · 12 brands · 26 categories**, seeded from real catalogues.
 
 ## See it live
 
@@ -28,32 +28,49 @@ node serve.js
 
 Then open http://localhost:4321 — no build step needed, `docs/` is ready to serve.
 
-`befach-artifact.html` is the same site as a single self-contained file (5.7 MB,
+`befach-artifact.html` is the same site as a single self-contained file (11 MB,
 every image inlined) — open it directly or host it anywhere, no server needed.
 
 ## Data sources
 
 | Brand | Products | Ships from | Source |
 |---|---|---|---|
-| Two Brothers Organic Farms | 83 | Pune, MH | `twobrothersindiashop.csv` (supplied) |
 | Happilo | 136 | Bengaluru, KA | `happilo.com/products.json` |
 | Wellbeing Nutrition | 128 | Mumbai, MH | `wellbeingnutrition.com/products.json` |
+| Slurrp Farm | 107 | Gurugram, HR | `slurrpfarm.com/products.json` |
+| Conscious Food | 106 | Mumbai, MH | `consciousfood.com/products.json` |
+| Open Secret | 94 | Mumbai, MH | `opensecret.in/products.json` |
+| Two Brothers Organic Farms | 83 | Pune, MH | `twobrothersindiashop.csv` (supplied) |
 | Yogabar | 58 | Bengaluru, KA | `yogabars.in/products.json` |
+| The Whole Truth Foods | 58 | Bengaluru, KA | `thewholetruthfoods.com/llmFeed.json` |
 | Farmley | 50 | Noida, UP | `farmley.com/products.json` |
+| Nourish Organics | 50 | New Delhi, DL | `nourishorganics.in/products.json` |
+| Rage Coffee | 31 | New Delhi, DL | `ragecoffee.com/products.json` |
 | Overra Herbals | 14 | Bathinda, PB | `overraherbals.com/products.json` |
+
+Ten of the eleven online stores are Shopify and expose `/products.json`.
+**The Whole Truth is Next.js** with no such endpoint — but its sitemap advertises
+an `llmFeed.json`, a catalogue it publishes for machine reading. `llmFeedSource()`
+in `build/catalog.js` reads that flat format instead.
 
 Every feed had its own trap. All are handled in `build/catalog.js`:
 
-- **Overra** lists each SKU twice — once as a single unit, once as a multipack at
-  clean 2x/4x/5x ratios. The build keeps single units only.
-- **Wellbeing, Yogabar and Farmley** sell multipacks as *variants* ("Pack of 1"
-  through "Pack of 6", "500g x 3"). The reader anchors on the **cheapest**
-  variant, the base unit. Anchoring on the dearest listed a 989-rupee product at
-  5,935 and halved that into a nonsense wholesale rate.
-- **Wellbeing** also lists shakers, gym bags, lab-test bookings and free samples.
-  None are shelf stock, so `keep` filters them out.
-- **Farmley** names some products by flavour alone ("Cheesy Cheddar - Pack of 4").
-  They are roasted makhana, and only the description says so.
+- **Multipacks sold as variants.** Wellbeing, Yogabar and Farmley list "Pack of 1"
+  through "Pack of 6" and "500g x 3" as variants of one product. The reader
+  anchors on the **cheapest** variant, the base unit. Anchoring on the dearest
+  listed a 989-rupee product at 5,935 and halved that into a nonsense wholesale
+  rate.
+- **Multipacks sold as separate products.** Overra and The Whole Truth list the
+  single and the box as different SKUs. Both readers keep the single where one
+  exists, and the cheapest pack where the line is box-only.
+- **Non-stock listings.** Shakers, gym bags, lab-test bookings, free samples,
+  tote bags, gift cards — and one children's picture book. `isNotStock()` drops
+  them across every source.
+- **Flavour-only names.** Farmley's "Cheesy Cheddar - Pack of 4" is roasted
+  makhana and only the description says so, so categorisation falls back to the
+  body text — but only for rules naming a product *form*. Letting claim words
+  read the body filed that makhana under protein powder, because the copy says
+  "rich in plant protein".
 
 ## Layout
 
@@ -94,8 +111,7 @@ and fully regenerable by the commands above.
 
 `optimise.js` needs `sharp` (`npm install`). It exists because the Shopify CDN
 refuses to downscale some PNGs — five were 2 MB each, which alone blew the
-single-file build past its size budget. It takes 26 MB of source photography
-down to 4 MB.
+single-file build past its size budget. It takes 140 MB of source photography down to 8 MB.
 
 `build/data.js` stamps a content hash onto each asset URL in `index.html`
 (`assets/data.js?v=a4634dcf`). Without it a returning visitor can pair new markup
@@ -107,7 +123,8 @@ produced a live page with zero products.
 Most Indian D2C stores run on Shopify and expose `/products.json`, so a new brand
 is three small edits:
 
-1. `node build/scrape.js <domain> <name>-raw.json`
+1. `node build/scrape.js <domain> <name>-raw.json` (check the store is Shopify
+   first — `/products.json` returning HTML means it is not).
 2. A `shopifySource(...)` call in `build/catalog.js`. Per-store quirks go in the
    options object — `keep` to filter listings, `title` and `usp` to override the
    default copy extraction, `stripName` to strip brand noise from titles.
@@ -141,6 +158,13 @@ Then `npm run build`. Three things to watch:
 Checkout is blocked until *every* brand in the cart clears its own opening
 minimum. Wholesale is derived at a 50% keystone margin off MRP and case packs
 scale by price band — both live in `trade()` in `build/catalog.js`.
+
+## Performance note
+
+Browse pages in blocks of 60 with a Show more button. Rendering all 915 cards
+at once cost 2 seconds, 20,000 DOM nodes and a page 169,000px tall. Add-to-cart
+is a single delegated listener so cards appended by Show more work without
+rebinding.
 
 ## Routes
 

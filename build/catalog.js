@@ -29,15 +29,22 @@ const RULES = [
   ['combos',          /\bcombo\b|\(\s*\d+\s*pack\s*\)|multipack|value pack/i],
   /* bars before snacks-sweets (/bar\b/) and before protein-powder, so a
      "20g Protein Bar" lands as a bar rather than a powder */
-  ['bars',            /protein bar|snack bar|energy bar|granola bar|\bbars?\b|date bites|date melts|munch/i],
+  /* fudge and cocoa here too: The Whole Truth names bars by flavour, so
+     "Almond Choco Fudge" was landing in nuts and "Cocoa Cranberry" in
+     dried fruit */
+  ['bars',            /protein bar|snack bar|energy bar|granola bar|\bbars?\b|date bites|date melts|munch|fudge|\bcocoa\b/i],
   /* breakfast before trail-mix, which also claims /muesli/ */
   ['breakfast',       /muesli|granola|\boats?\b|porridge|cereal|breakfast/i],
+  /* mixes and batters, before attas-flours claims /poha/ and /flour/ */
+  ['ready-to-cook',   /noodle|pancake|\bdosa\b|\bidli\b|\bupma\b|\bsoup\b|ready to cook|ready-to-cook|instant mix|batter|\bpasta\b|vermicelli mix/i],
   ['protein-powder',  /whey|protein powder|protein shake|plant protein|kids protein|vegan protein|protein sachet|isolate|casein|fermented yeast protein|\bmass gainer\b/i],
   ['supplements',     /creatine|vitamin|\bfibre?\b|mineral|kadha|radiant skin|skin pack|collagen|capsule|tablet|effervescent|shilajit|electrolyte|melts?\s*strip|gummies|liposomal|glutathione|apple cider|\bacv\b|omega|multivitamin|probiotic|\bjuice\b|sea buckthorn|skin fuel/i],
   ['ghee-dairy',      /ghee|colostrum/i],
   ['oils',            /\boil\b|oil,|oil i|oil spray/i],
   /* wellness drink mixes must beat the generic /mix/ in trail-mix */
   ['wellness',        /chyawanprash|amlaprash|moringa|golden milk|thandai|shikanji|panjiri|ashwagandha|brahmi|shatavari|herbal tea|lemon tea/i],
+  /* after wellness, so Overra's low-GI "Dia Lemon Tea" stays a wellness SKU */
+  ['coffee-tea',      /coffee|espresso|arabica|robusta|\bchai\b|green tea|black tea|tea bags?|\btea\b/i],
   /* and date-palm jaggery must beat /dates?/ */
   ['sweeteners',      /jaggery|kaakvi|sap sugar|mishri|cane sugar|shakkar|shakker|\bsugar\b/i],
   ['makhana',         /makhana|fox nut|foxnut|phool makhana|lotus seed|chickpea|party snack|namkeen/i],
@@ -49,7 +56,7 @@ const RULES = [
   ['nuts',            /almond|cashew|walnut|pistachio|pecan|brazil nut|peanut|\bnuts\b|kernel/i],
   ['attas-flours',    /atta|flour|satva|sattu|vermicelli|poha|wheat grain/i],
   ['honey-preserves', /honey|gulkand|murabba/i],
-  ['spices',          /haldi|turmeric|saffron|chilli|salt|masala/i],
+  ['spices',          /haldi|turmeric|saffron|chilli|salt|masala|cardamom|elaichi|black pepper|kaali mirch|coriander|dhania|cumin|jeera|clove|laung|cinnamon|dalchini|fennel|saunf|fenugreek|methi|bay leaf|nutmeg|asafoetida|hing|tamarind|imli|\bspice/i],
   ['pickles',         /pickle|ketchup/i],
   ['grains-dals',     /rice|\bdal\b|rajma|\bgram\b|moong|besan|quinoa|millet/i],
   ['snacks-sweets',   /laddoo|chakli|chips|mathri|mathari|katli|modak|barfi|bar\b|bites|sticks|krunch/i],
@@ -60,6 +67,8 @@ const CATS = {
   'combos':          { name:'Combo Packs',           tagline:'Multi-item bundles that ship as one SKU',             hi:'कॉम्बो' },
   'bars':            { name:'Bars & Energy Bites',   tagline:'Protein bars, date bites and on-the-go snacks',       hi:'बार' },
   'breakfast':       { name:'Muesli, Oats & Granola',tagline:'Wholegrain breakfast, ready in a bowl',               hi:'नाश्ता' },
+  'coffee-tea':      { name:'Coffee & Tea',          tagline:'Instant blends, ground roasts and leaf tea',          hi:'चाय' },
+  'ready-to-cook':   { name:'Ready to Cook',         tagline:'Pancake and dosa mixes, noodles and soups',           hi:'तैयार' },
   'protein-powder':  { name:'Protein & Shakes',      tagline:'Whey, plant protein and ready-to-drink',              hi:'प्रोटीन' },
   'supplements':     { name:'Supplements & Actives', tagline:'Collagen, capsules, melts and electrolytes',          hi:'सप्लीमेंट' },
   'dates':           { name:'Dates & Anjeer',        tagline:'Medjoul, Kimia, Safawi and Afghani figs',             hi:'खजूर' },
@@ -198,10 +207,74 @@ function firstSentence(html) {
 /* Shopify serves resized images by filename suffix */
 const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_300x300$1$3');
 
+/* Vouchers and merch turn up in most of these feeds — gift cards, tote bags,
+   shakers, even a children's picture book. None of it is shelf stock. */
+const isNotStock = p => {
+  const t = (p.title || '') + ' ' + (p.product_type || '');
+  return /gift card|e-?gift|voucher|\bwallet\b/i.test(t) ||
+         /merchandise|apparel/i.test(p.product_type || '') ||
+         /\btote\b|\bt-?shirt\b|\bmug\b|\bflask\b|\bbook\b|sipper|\bcap\b/i.test(p.title || '');
+};
+
+/* ---- The Whole Truth publishes an llmFeed.json instead of products.json ----
+   Flat records: {sku, name, description, price, availability, pack_size,
+   image_url}. One row per variant, names suffixed "— Option / Value". */
+function llmFeedSource(file, brandId, prefix) {
+  const feed = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));
+  const base = n => decode(String(n)).replace(/\s*—\s*.*$/, '')
+    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').replace(/\s+/g, ' ').trim();
+
+  /* Singles and their own multipacks are separate rows. Group on the name with
+     any "- Box of 10" suffix removed, then keep the single if there is one and
+     the cheapest pack otherwise — dropping every pack outright would lose the
+     lines that are only sold by the box. */
+  /* Strip only the pack phrase, not everything after it — ".*$" turned
+     "All in One - Box of 8 Protein Bars" into "All in One" and lost the noun
+     the taxonomy needs. */
+  const core = n => base(n)
+    .replace(/\s*[-–]\s*(box|pack) of \d+\s*/i, ' ')
+    .replace(/\s+/g, ' ').trim();
+  const groups = {};
+  (feed.products || []).forEach(p => {
+    if (p.availability !== 'InStock' || !p.image_url || !(p.price > 0)) return;
+    if (isNotStock({ title: p.name, product_type: '' })) return;
+    const k = core(p.name).toLowerCase();
+    if (!k) return;
+    const isPack = /\b(box|pack) of \d+/i.test(p.name);
+    const cur = groups[k];
+    if (!cur) { groups[k] = p; return; }
+    const curPack = /\b(box|pack) of \d+/i.test(cur.name);
+    if (curPack && !isPack) groups[k] = p;                       // single wins
+    else if (curPack === isPack && p.price < cur.price) groups[k] = p;
+  });
+
+  return Object.values(groups).map((p, i) => {
+    const title = core(p.name);
+    const mrp   = Math.round(p.price);
+    const t     = trade(mrp);
+    const body  = decode(String(p.description || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    return {
+      id: prefix + '-' + String(i + 1).padStart(3, '0'),
+      slug: slug(title) || (prefix + '-product-' + (i + 1)),
+      title,
+      usp: firstSentence(p.description) || 'Clean-label, no added nonsense',
+      brandId,
+      category: categorise(title, body.slice(0, 400)),
+      values: valuesFor(title + ' ' + body),
+      badge: '',
+      mrp, wholesale: t.wholesale, casePack: t.casePack,
+      margin: Math.round((1 - t.wholesale / mrp) * 100),
+      rating: 0, reviews: 0,
+      sizes: /default/i.test(p.pack_size || '') ? [] : [String(p.pack_size).trim()],
+      img: p.image_url, img2: '',
+    };
+  });
+}
+
 function shopifySource(file, brandId, prefix, opt) {
   opt = opt || {};
   const raw = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));
-  return raw.filter(p => (opt.keep ? opt.keep(p) : true)).map((p, i) => {
+  return raw.filter(p => !isNotStock(p) && (opt.keep ? opt.keep(p) : true)).map((p, i) => {
     const priced = p.variants.filter(v => +v.price > 0);
     if (!priced.length || !p.images.length) return null;
 
@@ -306,7 +379,25 @@ const products = twoBrothers()
   }))
   .concat(shopifySource('farmley-raw.json', 'farmley', 'fm', {
     stripName: /^Farmley\s+/gi,
-  }));
+  }))
+  .concat(shopifySource('rage-raw.json', 'rage', 'rg', {
+    /* flasks and mugs are merchandise, not stock */
+    keep: p => !/flask|mug|tumbler|frother$/i.test(p.product_type || ''),
+    stripName: /^Rage Coffee\s+/gi,
+  }))
+  .concat(shopifySource('slurrp-raw.json', 'slurrp', 'sl', {
+    stripName: /^Slurrp Farm\s+/gi,
+  }))
+  .concat(shopifySource('conscious-raw.json', 'conscious', 'cf', {
+    stripName: /^Conscious Food\s+/gi,
+  }))
+  .concat(shopifySource('opensecret-raw.json', 'opensecret', 'os', {
+    stripName: /^Open Secret\s+/gi,
+  }))
+  .concat(shopifySource('nourish-raw.json', 'nourish', 'no', {
+    stripName: /^Nourish Organics\s+/gi,
+  }))
+  .concat(llmFeedSource('twt-feed.json', 'wholetruth', 'wt'));
 
 // slugs must stay unique across sources
 const seen = {};
