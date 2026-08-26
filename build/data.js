@@ -1,5 +1,5 @@
 /* Turns catalog.json into the payload the site loads (docs/assets/data.js). */
-const fs = require('fs'), path = require('path');
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const cat = JSON.parse(fs.readFileSync(path.join(__dirname, 'catalog.json'), 'utf8'));
 
 /* Live brands. Seed data — replace with real onboarding records. */
@@ -77,7 +77,26 @@ const payload = { products: cat.products, categories: cat.categories, brands, pi
 fs.writeFileSync(path.join(__dirname, '..', 'docs', 'assets', 'data.js'),
   'window.BEFACH = ' + JSON.stringify(payload) + ';\n');
 
+/* Cache-busting.
+   index.html revalidates often but the assets do not, so a returning visitor
+   can end up pairing new markup with a stale data.js — which is exactly how
+   the Haat -> Befach rename produced a page with zero products. Stamping a
+   content hash on each asset URL makes a changed file a different URL. */
+const stamp = f => crypto.createHash('sha1')
+  .update(fs.readFileSync(path.join(__dirname, '..', 'docs', 'assets', f)))
+  .digest('hex').slice(0, 8);
+
+const idxPath = path.join(__dirname, '..', 'docs', 'index.html');
+let idx = fs.readFileSync(idxPath, 'utf8');
+['styles.css', 'data.js', 'app.js'].forEach(f => {
+  const re = new RegExp('(assets/' + f.replace('.', '\\.') + ')(\\?v=[a-f0-9]+)?', 'g');
+  idx = idx.replace(re, '$1?v=' + stamp(f));
+});
+fs.writeFileSync(idxPath, idx);
+
 console.log('wrote docs/assets/data.js');
+console.log('  asset versions', ['styles.css', 'data.js', 'app.js']
+  .map(f => f.split('.')[0] + '=' + stamp(f)).join(' '));
 console.log('  products  ', cat.products.length);
 console.log('  categories', cat.categories.length);
 console.log('  brands    ', brands.length, 'live +', pipeline.length, 'onboarding');
