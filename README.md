@@ -7,10 +7,19 @@ makers sell wholesale to independent Indian retailers.
 
 ## See it live
 
+**https://raw.githack.com/befach/Befach-Marketplace/main/docs/index.html**
+
+Serves `docs/` straight off `main` through a CDN proxy — works today, no repo
+settings needed, and picks up every push. A browser may show a one-time
+"Open the page" notice on first visit.
+
+### Nicer URL, once Pages is on
+
 https://befach.github.io/Befach-Marketplace/
 
-GitHub Pages serves the `docs/` folder straight off `main` — no build step, no CI.
-Push a change to `docs/` and it redeploys.
+Needs one toggle a repo admin has to set, at
+`Settings -> Pages -> Source: Deploy from a branch -> main -> /docs`.
+Nothing in the repo needs to change — `docs/` is already laid out for it.
 
 ## Run it locally
 
