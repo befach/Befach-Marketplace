@@ -146,7 +146,7 @@ Then `npm run build`. Three things to watch:
 
 | Faire | Befach |
 |---|---|
-| Wholesale price vs MSRP | Wholesale vs MRP, margin % on every card |
+| Wholesale price vs MSRP | Each brand's own listed price vs its MRP, discount % shown |
 | Net 60 payment terms | Pay 60 days after delivery, nothing up front |
 | Free returns on opening order | Same, surfaced on the product page and in cart |
 | Per-brand order minimums | Rs 8,000–20,000 opening, progress meter per brand |
@@ -156,8 +156,17 @@ Then `npm run build`. Three things to watch:
 | 15% new / 3% reorder take | Same, stated on the seller page |
 
 Checkout is blocked until *every* brand in the cart clears its own opening
-minimum. Wholesale is derived at a 50% keystone margin off MRP and case packs
-scale by price band — both live in `trade()` in `build/catalog.js`.
+minimum.
+
+**Pricing is mirrored, never derived.** `price` is what the brand actually
+charges for its default variant and `mrp` is that variant's struck-through
+compare-at, taken straight from the source feed. Descriptions are the brand's
+own words, tags stripped, attributed on the product page.
+
+An earlier build showed MRP as the headline and invented a wholesale rate at a
+flat 50% off, so every figure on the site disagreed with the brand's own
+storefront. Real trade rates are negotiated per brand at onboarding; until they
+exist the product page says so rather than showing a made-up number.
 
 ## Performance note
 

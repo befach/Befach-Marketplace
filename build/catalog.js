@@ -126,12 +126,23 @@ function categorise(primary, secondary) {
 function valuesFor(text) {
   return VALUE_RULES.filter(([, re]) => re.test(text)).map(([k]) => k);
 }
-/* keystone margin, the Faire standard; case packs scale by price band */
-function trade(mrp) {
-  return {
-    wholesale: Math.round(mrp * 0.5 / 5) * 5,
-    casePack:  mrp > 1500 ? 4 : mrp > 600 ? 6 : mrp > 200 ? 12 : 24,
-  };
+/* Pricing is mirrored from each source, never derived.
+   `price` is what the store actually charges for its default variant and
+   `mrp` is that variant's struck-through compare-at, or 0 when there is no
+   discount running. An earlier build showed MRP as the headline and invented
+   a wholesale rate at a flat 50% off, which made every figure on the site
+   disagree with the brand's own storefront. */
+function pricing(price, compareAt) {
+  const p = Math.round(+price || 0);
+  const c = Math.round(+compareAt || 0);
+  const mrp = c > p ? c : 0;
+  return { price: p, mrp: mrp, discount: mrp ? Math.round((1 - p / mrp) * 100) : 0 };
+}
+
+/* Description text exactly as the source wrote it, tags stripped. */
+function plainText(html, cap) {
+  const t = decode(String(html || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  return cap && t.length > cap ? t.slice(0, cap).replace(/\s+\S*$/, '') + '…' : t;
 }
 
 /* ================= source 1: Two Brothers CSV ================= */
@@ -142,18 +153,18 @@ function twoBrothers() {
     const mrp   = money(r[11]) || money(r[9]);
     let   usp   = (r[13] || '').trim();
     const badgeTxt = (r[14] || '').trim();              // '4.9 | 1631 Reviews'
-    const t = trade(mrp);
+    const t = pricing(money(r[9]), money(r[11]));   // sale price, regular price
     return {
       id: 'tb-' + String(i + 1).padStart(3, '0'),
       slug: slug(title) || ('tb-product-' + (i + 1)),
       title,
-      usp: usp || 'Sourced, milled and packed on the farm',
+      usp: usp,                      // the site's own strapline, verbatim
+      desc: '',                      // the CSV carries no description
       brandId: 'two-brothers',
       category: categorise(title),
       values: valuesFor(title + ' ' + usp),
       badge: (r[0] || '').trim(),
-      mrp, wholesale: t.wholesale, casePack: t.casePack,
-      margin: mrp ? Math.round((1 - t.wholesale / mrp) * 100) : 50,
+      price: t.price, mrp: t.mrp, discount: t.discount,
       rating:  parseFloat(badgeTxt.split('|')[0]) || parseFloat(r[16]) || 0,
       reviews: parseInt((badgeTxt.split('|')[1] || '').replace(/[^0-9]/g, ''), 10) || 0,
       sizes: [(r[19] || '').trim(), (r[20] || '').trim()].filter(Boolean),
@@ -250,20 +261,19 @@ function llmFeedSource(file, brandId, prefix) {
 
   return Object.values(groups).map((p, i) => {
     const title = core(p.name);
-    const mrp   = Math.round(p.price);
-    const t     = trade(mrp);
-    const body  = decode(String(p.description || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    const t     = pricing(p.price, 0);       // the feed carries no compare-at
+    const body  = plainText(p.description);
     return {
       id: prefix + '-' + String(i + 1).padStart(3, '0'),
       slug: slug(title) || (prefix + '-product-' + (i + 1)),
       title,
-      usp: firstSentence(p.description) || 'Clean-label, no added nonsense',
+      usp: firstSentence(p.description) || '',
+      desc: plainText(p.description, 700),
       brandId,
       category: categorise(title, body.slice(0, 400)),
       values: valuesFor(title + ' ' + body),
       badge: '',
-      mrp, wholesale: t.wholesale, casePack: t.casePack,
-      margin: Math.round((1 - t.wholesale / mrp) * 100),
+      price: t.price, mrp: t.mrp, discount: t.discount,
       rating: 0, reviews: 0,
       sizes: /default/i.test(p.pack_size || '') ? [] : [String(p.pack_size).trim()],
       img: p.image_url, img2: '',
@@ -278,15 +288,11 @@ function shopifySource(file, brandId, prefix, opt) {
     const priced = p.variants.filter(v => +v.price > 0);
     if (!priced.length || !p.images.length) return null;
 
-    /* Anchor on the CHEAPEST priced variant — the base unit.
-       These stores sell multipacks as variants ("Pack of 1" ... "Pack of 6",
-       "500g x 3"), so taking the dearest one would list a 989-rupee product
-       at 5935 and halve that into a nonsense wholesale rate. Retailers buy
-       cases of the base SKU; trade() derives the case pack from there. */
-    const v   = priced.slice().sort((a, b) => +a.price - +b.price)[0];
-    const mrp = Math.round(+(v.compare_at_price && +v.compare_at_price > +v.price
-                             ? v.compare_at_price : v.price));
-    if (!mrp) return null;
+    /* The store's own default variant — first in feed order — so the price
+       here is the one a shopper sees on the brand's product page. */
+    const v = priced[0];
+    const t = pricing(v.price, v.compare_at_price);
+    if (!t.price) return null;
 
     const clean = decode(p.title).replace(opt.stripName || /^$/, '').replace(/\s+/g, ' ').trim();
     /* Split on separators outside brackets: combo titles list their contents
@@ -295,11 +301,12 @@ function shopifySource(file, brandId, prefix, opt) {
     const title = opt.title ? opt.title(clean)
                 : (bits[0].replace(/\s*[-–]\s*\d+\s*(gms?|kgs?|ml|l)\s*$/i, '').trim() || clean);
 
-    const usp = (opt.usp && opt.usp(p, clean)) ||
-                bits.slice(1, 3).join(' | ').replace(/\s+/g, ' ').slice(0, 72) ||
-                bullets(p.body_html, 2).join(' | ').slice(0, 72) ||
-                firstSentence(p.body_html) ||
-                (p.product_type ? p.product_type + ' · premium grade' : 'Premium grade, sorted by hand');
+    /* Card strapline drawn from the source's own words only — the title's
+       trailing clauses, then its bullets, then its opening sentence. No
+       invented copy: an empty description stays empty. */
+    const usp = bits.slice(1, 3).join(' | ').replace(/\s+/g, ' ').slice(0, 90) ||
+                bullets(p.body_html, 2).join(' | ').slice(0, 90) ||
+                firstSentence(p.body_html) || '';
 
     const tags = (p.tags || []).join(' ');
     const badge = /New Arrival/i.test(tags)              ? 'New Launch'
@@ -309,20 +316,19 @@ function shopifySource(file, brandId, prefix, opt) {
                 : /Gifting/i.test(p.product_type || '')  ? 'Gifting'
                 : '';
 
-    const t = trade(mrp);
-    const hay = clean + ' ' + usp + ' ' + decode(p.body_html || '').replace(/<[^>]+>/g, ' ');
+    const hay = clean + ' ' + usp + ' ' + plainText(p.body_html);
 
     return {
       id: prefix + '-' + String(i + 1).padStart(3, '0'),
       slug: slug(p.handle) || (prefix + '-product-' + (i + 1)),
       title, usp,
+      desc: plainText(p.body_html, 700),     // the brand's own description
       brandId,
       category: categorise(clean + ' ' + (p.product_type || ''),
-                           decode(p.body_html || '').replace(/<[^>]+>/g, ' ').slice(0, 400)),
+                           plainText(p.body_html).slice(0, 400)),
       values: valuesFor(hay),
       badge,
-      mrp, wholesale: t.wholesale, casePack: t.casePack,
-      margin: Math.round((1 - t.wholesale / mrp) * 100),
+      price: t.price, mrp: t.mrp, discount: t.discount,
       rating: 0, reviews: 0,                 // these feeds carry no review data
       /* Real sizes only — "Pack of 4" and "500g x 3" are multipacks of the
          base unit, not options a retailer picks between. */
@@ -351,16 +357,6 @@ const products = twoBrothers()
     /* Keep the pack weight in the name: three SKUs are all "Diabeat Plus Sugar"
        and only the weight tells them apart. */
     title: clean => clean.replace(/\s*[-–]\s*/, ' ').replace(/\s+/g, ' ').trim(),
-    /* Their descriptions are the same boilerplate paragraph on every product,
-       so the shelf line comes from the range's own positioning instead. */
-    usp: (p, clean) =>
-        /gluten\s*free/i.test(clean)      ? 'Gluten-free | Low GI, diabetic friendly'
-      : /combo|\(\s*\d+\s*pack/i.test(clean) ? 'Low GI staples bundle | Diabetic friendly'
-      : /tea/i.test(clean)                ? 'Herbal infusion | Low GI, no added sugar'
-      : /rice/i.test(clean)               ? 'Low GI rice | Diabetic friendly'
-      : /flour|atta/i.test(clean)         ? 'Low GI flour | Diabetic friendly'
-      : /shakkar|shakker|jaggery/i.test(clean) ? 'Low GI jaggery powder | Diabetic friendly'
-      : 'Glycaemic index under 45 | Diabetic friendly',
   }))
   .concat(shopifySource('yogabars-raw.json', 'yogabars', 'yb', {
     stripName: /^Yogabar\s+/gi,

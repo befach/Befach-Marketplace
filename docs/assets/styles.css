@@ -473,3 +473,13 @@ p{margin:0}
 .more-wrap{text-align:center;margin-top:30px;padding-top:26px;
   border-top:1px solid var(--line)}
 .more-count{font-size:13px;color:var(--ink-mute);margin-top:11px}
+
+/* real source pricing + description */
+.offchip{background:var(--sindoor-tint);color:var(--sindoor);font-weight:700;
+  font-size:11px;padding:2px 7px;border-radius:var(--r-sm)}
+.trade-note{margin-top:12px;font-size:12.5px;color:var(--ink-mute);line-height:1.5}
+.pdp-desc{border-top:1px solid var(--line);margin-top:24px;padding-top:20px}
+.pdp-desc h3{font-size:17px;margin-bottom:10px}
+.pdp-desc p{font-size:14.5px;line-height:1.65;color:var(--ink-soft)}
+.src-note{display:block;margin-top:10px;font-size:11.5px;color:var(--ink-mute);
+  font-style:italic}

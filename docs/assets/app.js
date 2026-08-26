@@ -79,7 +79,7 @@ function cartCount() {
 function cartTotal() {
   return cart.reduce(function (n, l) {
     var p = find(l.id);
-    return n + (p ? p.wholesale * p.casePack * l.qty : 0);
+    return n + (p ? p.price * l.qty : 0);
   }, 0);
 }
 function addToCart(id, size, qty) {
@@ -90,7 +90,7 @@ function addToCart(id, size, qty) {
   save('befach.cart', cart);
   syncChrome();
   var p = find(id);
-  toast(p.title.slice(0, 34) + ' · ' + qty + ' case' + (qty > 1 ? 's' : '') + ' added');
+  toast(p.title.slice(0, 34) + ' · ' + qty + (qty > 1 ? ' units' : ' unit') + ' added');
 }
 function setQty(key, qty) {
   cart = cart.filter(function (l) { return l.key !== key || qty > 0; });
@@ -111,9 +111,9 @@ function syncChrome() {
 /* ---------------- the wholesale gate ---------------- */
 function promptSignup() {
   openModal(
-    '<h3>Wholesale pricing is for trade accounts</h3>' +
-    '<p>Befach is a business-to-business market. Open a free retailer account to see wholesale rates, ' +
-    'unlock 60-day payment terms and place your first order with no minimum.</p>' +
+    '<h3>Ordering is for trade accounts</h3>' +
+    '<p>Befach is a business-to-business market. Open a free retailer account to place ' +
+    'orders, unlock 60-day payment terms and start with no minimum.</p>' +
     '<a href="#/join" class="btn btn-ink btn-block btn-lg" onclick="BefachUI.closeModal()">Open a retailer account</a>' +
     '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="BefachUI.closeModal()">Not now</button>'
   );
@@ -122,7 +122,7 @@ function signIn(shop, city) {
   account = { shop: shop || 'Demo Retail', city: city || 'Bengaluru' };
   save('befach.account', account);
   syncChrome();
-  toast('Trade account active · wholesale pricing unlocked');
+  toast('Trade account active · you can place orders now');
 }
 function signOut() {
   account = null; cart = [];
@@ -136,14 +136,14 @@ function card(p) {
   var tag = p.badge ? '<span class="tag ' + tagClass(p.badge) + '">' + esc(p.badge) + '</span>' : '';
   var alt = p.img2 ? '<img class="alt" src="' + esc(p.img2) + '" alt="" loading="lazy">' : '';
 
-  var priceBlock = account
-    ? '<div class="wholesale"><span class="amt">' + rupee(p.wholesale) + '</span>' +
-      '<span class="lbl">/ unit wholesale</span></div>' +
-      '<div class="msrp"><s>MRP ' + rupee(p.mrp) + '</s>' +
-      '<span class="marginchip">' + p.margin + '% margin</span></div>'
-    : '<div class="wholesale"><span class="amt locked">' + rupee(p.wholesale) + '</span>' +
-      '<span class="lbl">/ unit wholesale</span></div>' +
-      '<div class="lock-note"><svg viewBox="0 0 24 24" fill="none"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>Sign in to see rates</div>';
+  /* The brand's own listed price, exactly as its storefront shows it. */
+  var priceBlock =
+    '<div class="wholesale"><span class="amt">' + rupee(p.price) + '</span>' +
+      (p.mrp ? '<span class="lbl">list price</span>' : '') + '</div>' +
+    (p.mrp
+      ? '<div class="msrp"><s>MRP ' + rupee(p.mrp) + '</s>' +
+        '<span class="offchip">' + p.discount + '% off</span></div>'
+      : '');
 
   /* not every source feed carries reviews — show the values instead of a blank star row */
   var rating = p.rating
@@ -164,8 +164,8 @@ function card(p) {
       '<p class="card-usp">' + esc(p.usp) + '</p>' + rating +
       '<div class="price-row">' + priceBlock +
         '<div class="card-foot">' +
-          '<span class="casepack">Case of ' + p.casePack + '</span>' +
-          '<button class="btn btn-ghost btn-sm" data-add="' + esc(p.slug) + '">Add case</button>' +
+          '<span class="casepack">' + (p.sizes[0] ? esc(p.sizes[0]) : '&nbsp;') + '</span>' +
+          '<button class="btn btn-ghost btn-sm" data-add="' + esc(p.slug) + '">Add</button>' +
         '</div>' +
       '</div>' +
     '</div></article>';
@@ -378,8 +378,8 @@ function viewBrowse(params) {
   });
 
   var sorters = {
-    'price-asc':  function (a, b) { return a.wholesale - b.wholesale; },
-    'price-desc': function (a, b) { return b.wholesale - a.wholesale; },
+    'price-asc':  function (a, b) { return a.price - b.price; },
+    'price-desc': function (a, b) { return b.price - a.price; },
     'rating':     function (a, b) { return (b.rating - a.rating) || (b.reviews - a.reviews); },
     'new':        function (a, b) { return score(b) - score(a); },
     'featured':   function (a, b) { return (b.reviews || 0) - (a.reviews || 0); }
@@ -460,15 +460,15 @@ function viewProduct(slug) {
   var b    = BR[p.brandId];
   var cat  = CAT[p.category];
   var same = PRODUCTS.filter(function (x) { return x.category === p.category && x.slug !== p.slug; }).slice(0, 5);
-  var caseTotal = p.wholesale * p.casePack;
-
-  var pricing = account
-    ? '<div class="big">' + rupee(p.wholesale) + '<span class="per">per unit</span></div>' +
-      '<div class="sub"><s>MRP ' + rupee(p.mrp) + '</s>' +
-      '<span class="marginchip">' + p.margin + '% margin</span>' +
-      '<span>' + rupee(caseTotal) + ' per case of ' + p.casePack + '</span></div>'
-    : '<div class="big locked">' + rupee(p.wholesale) + '</div>' +
-      '<div class="sub"><a href="#/join" class="pdp-brandlink">Sign in to see wholesale pricing</a></div>';
+  var pricing =
+    '<div class="big">' + rupee(p.price) + '</div>' +
+    '<div class="sub">' +
+      (p.mrp ? '<s>MRP ' + rupee(p.mrp) + '</s>' +
+               '<span class="offchip">' + p.discount + '% off</span>' : '') +
+      (p.sizes[0] ? '<span>' + esc(p.sizes[0]) + '</span>' : '') +
+    '</div>' +
+    '<p class="trade-note">' + esc(b.short) + ' sets its trade rate at onboarding. ' +
+    'The price above is the brand’s own listed price.</p>';
 
   var sizes = p.sizes.length
     ? '<div><label style="font-size:12.5px;font-weight:600;letter-spacing:.05em;' +
@@ -487,7 +487,7 @@ function viewProduct(slug) {
     '<div>' +
       '<a class="pdp-brandlink" href="#/brand/' + esc(b.id) + '">' + esc(b.name) + '</a>' +
       '<h1>' + esc(p.title) + '</h1>' +
-      '<p class="pdp-usp">' + esc(p.usp) + '</p>' +
+      (p.usp ? '<p class="pdp-usp">' + esc(p.usp) + '</p>' : '') +
       (p.rating ? '<div class="rate"><svg viewBox="0 0 24 24"><path d="m12 2 3 6.6 7 .9-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-.9z"/></svg>' +
         '<b>' + p.rating.toFixed(1) + '</b><span>' + reviewLabel(p.reviews) + '</span></div>' : '') +
       '<div class="pricebox">' + pricing + '</div>' + sizes +
@@ -495,11 +495,15 @@ function viewProduct(slug) {
         '<div class="qty"><button data-q="-1">&minus;</button><span id="qtyVal">1</span>' +
         '<button data-q="1">+</button></div>' +
         '<button class="btn btn-ink btn-lg" id="addBtn" style="flex:1;min-width:190px">' +
-        (account ? 'Add ' + p.casePack + ' units to order' : 'Sign in to order') + '</button>' +
+        (account ? 'Add to order' : 'Sign in to order') + '</button>' +
       '</div>' +
+      (p.desc
+        ? '<div class="pdp-desc"><h3>About this product</h3><p>' + esc(p.desc) + '</p>' +
+          '<span class="src-note">Description as published by ' + esc(b.name) + '</span></div>'
+        : '') +
       '<div class="spec"><dl>' +
         '<dt>Category</dt><dd>' + esc(cat.name) + '</dd>' +
-        '<dt>Case pack</dt><dd>' + p.casePack + ' units</dd>' +
+
         '<dt>Ships from</dt><dd>' + esc(b.shipsFrom) + '</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
         '<dt>Opening order</dt><dd>' + rupee(b.openingMin) + ' minimum</dd>' +
@@ -548,7 +552,7 @@ function viewBrand(id) {
       '<div><span>Payment</span><b>Net 60</b></div>' +
       '<div class="grow">' +
         (account ? '<a href="#/browse" class="btn btn-ink">Build an order</a>'
-                 : '<a href="#/join" class="btn btn-ink">Unlock wholesale</a>') + '</div>' +
+                 : '<a href="#/join" class="btn btn-ink">Open an account</a>') + '</div>' +
     '</div>' +
     '<section style="max-width:70ch;margin-bottom:40px">' +
       '<h2 style="font-size:26px;margin-bottom:12px">The farm</h2>' +
@@ -578,7 +582,7 @@ function viewCart() {
   var groups = BRANDS.map(function (b) {
     var lines = cart.filter(function (l) { return (find(l.id) || {}).brandId === b.id; });
     var sub   = lines.reduce(function (n, l) {
-      var p = find(l.id); return n + p.wholesale * p.casePack * l.qty;
+      var p = find(l.id); return n + p.price * l.qty;
     }, 0);
     return { brand: b, lines: lines, sub: sub, met: sub >= b.openingMin };
   }).filter(function (g) { return g.lines.length; });
@@ -594,17 +598,19 @@ function viewCart() {
       '<img src="' + esc(p.img) + '" alt="">' +
       '<div><h4>' + esc(p.title) + '</h4>' +
         '<div class="meta">' + (l.size ? esc(l.size) + ' · ' : '') +
-        'Case of ' + p.casePack + ' · ' + rupee(p.wholesale) + '/unit · ' +
-        '<span style="color:var(--leaf);font-weight:600">' + p.margin + '% margin</span></div>' +
+        rupee(p.price) + ' each' +
+        (p.mrp ? ' · <s style="color:var(--ink-mute)">MRP ' + rupee(p.mrp) + '</s>' +
+                 ' <span style="color:var(--leaf);font-weight:600">' + p.discount +
+                 '% off</span>' : '') + '</div>' +
         '<div class="qty" style="margin-top:10px">' +
           '<button data-cq="' + esc(l.key) + '" data-d="-1">&minus;</button>' +
           '<span>' + l.qty + '</span>' +
           '<button data-cq="' + esc(l.key) + '" data-d="1">+</button></div>' +
       '</div>' +
       '<div style="text-align:right"><b style="font-family:var(--serif);font-size:18px">' +
-        rupee(p.wholesale * p.casePack * l.qty) + '</b>' +
+        rupee(p.price * l.qty) + '</b>' +
         '<div style="font-size:12px;color:var(--ink-mute);margin-top:4px">' +
-        (p.casePack * l.qty) + ' units</div>' +
+        l.qty + (l.qty === 1 ? ' unit' : ' units') + '</div>' +
         '<button class="btn btn-plain btn-sm" data-cq="' + esc(l.key) + '" data-d="x" ' +
         'style="color:var(--sindoor);font-size:12px;padding:0;margin-top:6px">Remove</button></div>' +
     '</div>';
@@ -636,7 +642,7 @@ function viewCart() {
     '<div>' +
       '<h1 style="font-size:32px;margin-bottom:6px">Your order</h1>' +
       '<p style="color:var(--ink-soft);font-size:14px;margin-bottom:24px">' +
-        cartCount() + ' case' + (cartCount() === 1 ? '' : 's') + ' from ' +
+        cartCount() + ' item' + (cartCount() === 1 ? '' : 's') + ' from ' +
         groups.length + ' brand' + (groups.length === 1 ? '' : 's') +
         ' · one invoice, one delivery</p>' +
       sections +
