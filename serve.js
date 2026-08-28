@@ -1,5 +1,5 @@
 const http=require('http'),fs=require('fs'),path=require('path'),url=require('url');
-const ROOT=path.join(__dirname,'docs'),PORT=4321;
+const ROOT=path.join(__dirname,'docs'),PORT=process.env.PORT||4321;
 const MIME={'.html':'text/html; charset=utf-8','.css':'text/css; charset=utf-8',
  '.js':'text/javascript; charset=utf-8','.json':'application/json','.svg':'image/svg+xml',
  '.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.ico':'image/x-icon'};
@@ -14,4 +14,4 @@ http.createServer((req,res)=>{
       'Cache-Control':'no-store'});
     res.end(buf);
   });
-}).listen(PORT,()=>console.log('Befach dev server → http://localhost:'+PORT));
+}).listen(PORT,()=>console.log('Befach server listening on '+PORT));
