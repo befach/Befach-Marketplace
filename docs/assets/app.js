@@ -504,7 +504,6 @@ function viewProduct(slug) {
     '<div class="pdp-media">' +
       '<div class="m"><img src="' + esc(p.img) + '" alt="' + esc(p.title) + '"></div>' +
       (p.img2 ? '<div class="m"><img src="' + esc(p.img2) + '" alt=""></div>' : '') +
-      '<div class="m"><img src="' + esc((same[0] || p).img) + '" alt=""></div>' +
     '</div>' +
     '<div>' +
       '<a class="pdp-brandlink" href="#/brand/' + esc(b.id) + '">' + esc(b.name) + '</a>' +
