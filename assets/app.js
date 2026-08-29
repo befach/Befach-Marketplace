@@ -483,6 +483,7 @@ function viewProduct(slug) {
   var b    = BR[p.brandId];
   var cat  = CAT[p.category];
   var same = PRODUCTS.filter(function (x) { return x.category === p.category && x.slug !== p.slug; }).slice(0, 5);
+  var imgs = (p.imgs && p.imgs.length) ? p.imgs : [p.img, p.img2].filter(Boolean);
   /* Price box is re-rendered whenever the size changes, so the figure always
      belongs to the option that is actually selected. */
   var pricing = '<div id="priceBox">' + priceBoxHtml(p.variants[0] || p) + '</div>' +
@@ -502,8 +503,11 @@ function viewProduct(slug) {
 
   return '<div class="wrap"><div class="pdp">' +
     '<div class="pdp-media">' +
-      '<div class="m"><img src="' + esc(p.img) + '" alt="' + esc(p.title) + '"></div>' +
-      (p.img2 ? '<div class="m"><img src="' + esc(p.img2) + '" alt=""></div>' : '') +
+      '<div class="m" id="pdpStage"><img src="' + esc(imgs[0]) + '" alt="' + esc(p.title) + '"></div>' +
+      (imgs.length > 1 ? '<div class="thumbs" id="pdpThumbs">' + imgs.map(function (u, i) {
+        return '<button class="thumb' + (i === 0 ? ' on' : '') + '" data-src="' + esc(u) + '">' +
+               '<img src="' + esc(u) + '" alt="" loading="lazy"></button>';
+      }).join('') + '</div>' : '') +
     '</div>' +
     '<div>' +
       '<a class="pdp-brandlink" href="#/brand/' + esc(b.id) + '">' + esc(b.name) + '</a>' +
@@ -912,6 +916,13 @@ function bindView(r) {
       if (box) box.innerHTML = priceBoxHtml(pool[vi], qty);
     }
 
+    qa('#pdpThumbs .thumb').forEach(function (t) {
+      t.addEventListener('click', function () {
+        qa('#pdpThumbs .thumb').forEach(function (x) { x.classList.remove('on'); });
+        t.classList.add('on');
+        byId('pdpStage').querySelector('img').src = t.getAttribute('data-src');
+      });
+    });
     qa('#sizeRow .opt').forEach(function (o) {
       o.addEventListener('click', function () {
         qa('#sizeRow .opt').forEach(function (x) { x.classList.remove('on'); });
