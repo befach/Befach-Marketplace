@@ -838,6 +838,33 @@ function render() {
   bindView(r);
   var qEl = byId('q');
   if (qEl && document.activeElement !== qEl) qEl.value = r.params.q || '';
+  drift();
+}
+
+/* ================= hero arch drift ================= */
+/* --drift on .arch-collage tracks how far the hero has scrolled away (0 -> 1).
+   The CSS turns that into: left arch out left, right arch out right, middle up. */
+var driftQueued = false;
+
+function driftFrame() {
+  driftQueued = false;
+  var collage = document.querySelector('.arch-collage');
+  if (!collage) return;
+  var hero = collage.closest('.hero');
+  if (!hero) return;
+  var h = hero.offsetHeight || 1;
+  var p = -hero.getBoundingClientRect().top / h;
+  collage.style.setProperty('--drift', (p < 0 ? 0 : p > 1 ? 1 : p).toFixed(4));
+}
+
+function drift() {
+  if (driftQueued || reduceMotion()) return;
+  driftQueued = true;
+  requestAnimationFrame(driftFrame);
+}
+
+function reduceMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion:reduce)').matches);
 }
 
 /* ================= per-view bindings ================= */
@@ -990,6 +1017,8 @@ document.addEventListener('click', function (e) {
 /* ---------------- boot ---------------- */
 window.BefachUI = { closeModal: closeModal, signIn: signIn };
 window.addEventListener('hashchange', function () { render(); window.scrollTo(0, 0); });
+window.addEventListener('scroll', drift, { passive: true });
+window.addEventListener('resize', drift);
 render();
 
 })();
