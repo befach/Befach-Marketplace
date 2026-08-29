@@ -132,13 +132,15 @@ p{margin:0}
 .hero-note{margin-top:18px;font-size:13px;color:var(--ink-mute)}
 
 /* arch collage */
-.arch-collage{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end}
+.arch-collage{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end;--drift:0}
 .arch{border-radius:var(--arch);overflow:hidden;background:var(--paper-3);
-  box-shadow:var(--shadow-lg);position:relative;border:1px solid var(--line-2)}
+  box-shadow:var(--shadow-lg);position:relative;border:1px solid var(--line-2);
+  will-change:transform}
 .arch img{width:100%;height:100%;object-fit:cover}
-.arch-a{aspect-ratio:.62;margin-bottom:26px}
-.arch-b{aspect-ratio:.58}
-.arch-c{aspect-ratio:.62;margin-bottom:26px}
+/* --drift runs 0 -> 1 as the hero scrolls away: outer arches part, middle lifts */
+.arch-a{aspect-ratio:.62;margin-bottom:26px;transform:translate3d(calc(var(--drift) * -58px),0,0)}
+.arch-b{aspect-ratio:.58;transform:translate3d(0,calc(var(--drift) * -76px),0)}
+.arch-c{aspect-ratio:.62;margin-bottom:26px;transform:translate3d(calc(var(--drift) * 58px),0,0)}
 .hero-stat{position:absolute;left:24px;bottom:-14px;background:var(--white);
   border:1px solid var(--line-2);border-radius:var(--r);padding:11px 16px;
   box-shadow:var(--shadow);font-size:12.5px;z-index:2}
