@@ -852,8 +852,13 @@ function driftFrame() {
   if (!collage) return;
   var hero = collage.closest('.hero');
   if (!hero) return;
-  var h = hero.offsetHeight || 1;
-  var p = -hero.getBoundingClientRect().top / h;
+  /* Measure from scroll position, not the hero's box: the hero sits below the
+     promo bar and header, so its top only reaches the viewport after ~176px of
+     scroll and the drift would not start until then. Capping the travel at one
+     viewport keeps the motion brisk on tall screens. */
+  var travel = Math.min(hero.offsetHeight, window.innerHeight || hero.offsetHeight) || 1;
+  var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+  var p = y / travel;
   collage.style.setProperty('--drift', (p < 0 ? 0 : p > 1 ? 1 : p).toFixed(4));
 }
 
