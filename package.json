@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node serve.js",
     "build": "node build/catalog.js && node build/data.js",
-    "scrape": "node build/happilo.js && node build/overra.js",
+    "scrape": "node build/happilo.js && node build/overra.js && node build/cococart.js",
     "images": "node build/fetchimgs.js && node build/optimise.js",
     "bundle": "node build/artifact.js",
     "deploy": "git push origin main && git subtree push --prefix docs origin gh-pages"

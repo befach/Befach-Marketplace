@@ -3,7 +3,7 @@
 A working prototype of the Faire model rebuilt for India: independent Indian
 makers sell wholesale to independent Indian retailers.
 
-**966 products · 12 brands · 26 categories**, seeded from real catalogues.
+**1,532 products · 13 suppliers · 29 categories**, seeded from real catalogues.
 
 ## See it live
 
@@ -35,6 +35,7 @@ every image inlined) — open it directly or host it anywhere, no server needed.
 
 | Brand | Products | Ships from | Source |
 |---|---|---|---|
+| Cococart | 566 | Navi Mumbai, MH | `cococart.in/products.json` |
 | Happilo | 136 | Bengaluru, KA | `happilo.com/products.json` |
 | Wellbeing Nutrition | 128 | Mumbai, MH | `wellbeingnutrition.com/products.json` |
 | Slurrp Farm | 107 | Gurugram, HR | `slurrpfarm.com/products.json` |
@@ -48,10 +49,22 @@ every image inlined) — open it directly or host it anywhere, no server needed.
 | Rage Coffee | 31 | New Delhi, DL | `ragecoffee.com/products.json` |
 | Overra Herbals | 14 | Bathinda, PB | `overraherbals.com/products.json` |
 
-Ten of the eleven online stores are Shopify and expose `/products.json`.
+Twelve of the thirteen stores are Shopify and expose `/products.json`.
 **The Whole Truth is Next.js** with no such endpoint — but its sitemap advertises
 an `llmFeed.json`, a catalogue it publishes for machine reading. `llmFeedSource()`
 in `build/catalog.js` reads that flat format instead.
+
+**Cococart is the one distributor, not a maker.** Its 566 listings carry 57
+different labels — Neuhaus, Venchi, Lindt, Rhine Valley, Cadbury, Fabelle — so
+the product record gained a `maker` field and the card prints "Venchi · via
+Cococart". Fifty-seven brand records with invented stories was the alternative,
+and every one of those stories would have been fiction about a real company.
+Its own `product_type` drives the category (`cococartCategory`) rather than the
+shared title regexes: adding `/chocolate/` to `RULES` would have dragged
+Yogabar's dark-chocolate muesli and Whole Truth's cocoa bars out of the
+categories they already sit in. The whole shelf is mirrored — all 566, prices,
+MRPs and variants identical to the storefront, including the 227 currently out
+of stock and the three the store published with no photo.
 
 Every feed had its own trap. All are handled in `build/catalog.js`:
 
@@ -84,6 +97,7 @@ build/
   scrape.js            generic Shopify products.json reader (domain -> raw json)
   happilo.js           per-brand scraper wrappers
   overra.js
+  cococart.js
   catalog.js           all sources -> catalog.json (taxonomy + trade pricing)
   data.js              catalog.json -> docs/assets/data.js, stamps cache-busters
   fetchimgs.js         downloads product photos  -> build/img/
@@ -192,11 +206,14 @@ rebinding.
 
 ## Before this goes live
 
-- **The product photography and brand marks belong to Two Brothers Organic Farms,
-  Happilo, Overra Herbals, Yogabar, Wellbeing Nutrition and Farmley.** They are
-  seed data for a prototype, used without permission, and the repo is public. Get
-  written consent or replace them with your own shoots before this is
-  investor-facing or served under a real domain.
+- **The product photography and brand marks belong to the source stores** — Two
+  Brothers Organic Farms, Happilo, Overra Herbals, Yogabar, Wellbeing Nutrition,
+  Farmley and Cococart among them, plus the 57 confectionery labels Cococart
+  distributes. Every image is hotlinked from the source store's own CDN, so this
+  repo copies none of it, but the pages still display it. It is seed data for a
+  prototype, used without permission, and the repo is public. Get written consent
+  or replace it with your own shoots before this is investor-facing or served
+  under a real domain.
 - **Wholesale prices here are derived, not real** — a flat 50% off MRP. Every
   brand negotiates its own rate and case pack.
 - Cart, accounts and orders are `localStorage` only. Real trade accounts need a

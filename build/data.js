@@ -163,6 +163,24 @@ const brands = [
     prep: 'FSSAI licensed · Gluten-free facility · Date and jaggery sweetened',
     accent: '#C08A2E',
   },
+  {
+    id: 'cococart', name: 'Cococart', short: 'Cococart',
+    city: 'Turbhe, Navi Mumbai', state: 'Maharashtra', since: 2022,
+    tagline: 'Imported and Indian chocolate, 57 labels off one invoice',
+    story: 'The only distributor on Befach rather than a maker. Cococart imports and ' +
+           'stocks the chocolate aisle whole — Belgian pralines from Neuhaus and ' +
+           'Godiva, Italian dragees from Venchi, Swiss and German bars, Rhine Valley, ' +
+           'Cadbury and Fabelle — and delivers it out of Navi Mumbai to Mumbai, ' +
+           'Delhi, Bengaluru and Kolkata. A shop that would otherwise open accounts ' +
+           'with fifty importers opens one.',
+    /* No value badge fits an importer of Belgian pralines, and inventing one
+       would put a claim on the pack that the pack does not make. */
+    values: [],
+    storyHead: 'The supplier',
+    openingMin: 25000, reorderMin: 12000, leadDays: '3-5', shipsFrom: 'Navi Mumbai, MH',
+    prep: 'FSSAI licensed · Temperature-controlled storage · 57 labels stocked',
+    accent: '#6B4226',
+  },
 ];
 
 /* Illustrative pipeline brands showing marketplace shape. Fictional. */
