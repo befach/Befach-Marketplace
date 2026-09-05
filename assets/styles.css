@@ -283,7 +283,18 @@ p{margin:0}
 /* ================= browse layout ================= */
 .browse{display:grid;grid-template-columns:246px 1fr;gap:36px;padding:32px 0 72px;
   align-items:start}
-.filters{position:sticky;top:132px}
+/* The rail is sticky, and 53 brands make it taller than the viewport. A sticky
+   box taller than the screen just pins with its tail below the fold: the page
+   scrolls, the brand list does not, and the last twenty labels are unreachable.
+   Cap it to the height actually available and let it carry its own scrollbar.
+   No overscroll-behavior here on purpose -- once the rail bottoms out, the
+   wheel should go on to move the page rather than dead-stop under the cursor. */
+.filters{position:sticky;top:132px;max-height:calc(100vh - 148px);overflow-y:auto;
+  padding-right:10px;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent}
+.filters::-webkit-scrollbar{width:6px}
+.filters::-webkit-scrollbar-track{background:transparent}
+.filters::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:3px}
+.filters::-webkit-scrollbar-thumb:hover{background:var(--ink-mute)}
 .fgroup{border-bottom:1px solid var(--line);padding:18px 0}
 .fgroup:first-child{padding-top:0}
 .fgroup h4{font-family:var(--sans);font-size:12px;font-weight:700;letter-spacing:.1em;
@@ -311,7 +322,9 @@ p{margin:0}
 .chip button{font-size:15px;line-height:1;opacity:.6}
 .chip button:hover{opacity:1}
 @media(max-width:960px){.browse{grid-template-columns:1fr}
-  .filters{position:static;border:1px solid var(--line);border-radius:var(--r);
+  /* stacked above the grid at this width, so it scrolls with the page */
+  .filters{position:static;max-height:none;overflow:visible;padding-right:16px;
+    border:1px solid var(--line);border-radius:var(--r);
     padding:16px;background:var(--white)}}
 
 /* ================= product detail ================= */
