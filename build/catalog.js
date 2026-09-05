@@ -422,8 +422,14 @@ function shopifySource(file, brandId, prefix, opt) {
          was the bug: 500ml and 1000ml showed the same price. */
       variants: priced.slice(0, 8).map(x => {
         const vt = pricing(x.price, x.compare_at_price);
-        return { title: decode(x.title), price: vt.price, mrp: vt.mrp, discount: vt.discount };
-      }).filter(x => !/^default title$/i.test(x.title) || priced.length === 1),
+        /* "Default Title" is Shopify's placeholder for a product that has no
+           options at all, not a pack size a shop can order. Blank it rather
+           than drop it -- the record still needs one variant to price
+           against, and the card then prints an empty case-pack slot, the way
+           it already does for the CSV rows that never carried a size. */
+        const vtitle = /^default title$/i.test(x.title) ? '' : decode(x.title);
+        return { title: vtitle, price: vt.price, mrp: vt.mrp, discount: vt.discount };
+      }).filter(x => x.title || priced.length === 1),
       img:  p.images.length ? shrink(p.images[0].src) : NO_IMAGE,
       img2: shrink((p.images[1] || {}).src),
       imgs: p.images.slice(0, 10).map(x => big(x.src)),
