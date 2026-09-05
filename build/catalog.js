@@ -224,6 +224,7 @@ function twoBrothersCsv() {
       sizes: [(r[19] || '').trim(), (r[20] || '').trim()].filter(Boolean),
       img:  (r[3] || '').trim(),
       img2: (r[4] || '').trim(),
+      imgs: [(r[3] || '').trim(), (r[4] || '').trim()].filter(Boolean),
     };
   }).filter(p => p.title && p.mrp > 0);
 }
@@ -276,7 +277,9 @@ function firstSentence(html) {
 }
 
 /* Shopify serves resized images by filename suffix */
-const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_300x300$1$3');
+const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_600x600$1$3');
+/* Product-page gallery: every source image, large enough to fill the stage */
+const big    = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_1200x1200$1$3');
 
 /* Every image on the site is hotlinked from the source store's own CDN --
    nothing is copied into this repo. A handful of listings were published
@@ -355,7 +358,7 @@ function llmFeedSource(file, brandId, prefix) {
         title: /default/i.test(p.pack_size || '') ? '' : String(p.pack_size).trim(),
         price: t.price, mrp: t.mrp, discount: t.discount,
       }],
-      img: p.image_url, img2: '',
+      img: p.image_url, img2: '', imgs: [p.image_url].filter(Boolean),
     };
   });
 }
@@ -423,6 +426,7 @@ function shopifySource(file, brandId, prefix, opt) {
       }).filter(x => !/^default title$/i.test(x.title) || priced.length === 1),
       img:  p.images.length ? shrink(p.images[0].src) : NO_IMAGE,
       img2: shrink((p.images[1] || {}).src),
+      imgs: p.images.slice(0, 10).map(x => big(x.src)),
     };
     return opt.after ? opt.after(out, p) : out;
   }).filter(Boolean);
