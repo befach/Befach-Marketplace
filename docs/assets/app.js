@@ -167,7 +167,8 @@ function card(p) {
       '<img src="' + esc(p.img) + '" alt="' + esc(p.title) + '" loading="lazy">' + alt +
     '</a>' +
     '<div class="card-body">' +
-      '<div class="card-brand">' + esc(b.short) + '</div>' +
+      '<div class="card-brand">' + esc(p.maker || b.short) +
+        (p.maker ? '<span class="via">via ' + esc(b.short) + '</span>' : '') + '</div>' +
       '<a href="#/p/' + esc(p.slug) + '"><h3 class="card-title">' + esc(p.title) + '</h3></a>' +
       '<p class="card-usp">' + esc(p.usp) + '</p>' + rating +
       '<div class="price-row">' + priceBlock +
@@ -508,6 +509,7 @@ function viewProduct(slug) {
     '</div>' +
     '<div>' +
       '<a class="pdp-brandlink" href="#/brand/' + esc(b.id) + '">' + esc(b.name) + '</a>' +
+      (p.maker ? '<p class="pdp-maker">Made by <b>' + esc(p.maker) + '</b></p>' : '') +
       '<h1>' + esc(p.title) + '</h1>' +
       (p.usp ? '<p class="pdp-usp">' + esc(p.usp) + '</p>' : '') +
       (p.rating ? '<div class="rate"><svg viewBox="0 0 24 24"><path d="m12 2 3 6.6 7 .9-5 4.9 1.2 7L12 18l-6.2 3.4L7 14.4 2 9.5l7-.9z"/></svg>' +
@@ -525,6 +527,7 @@ function viewProduct(slug) {
         : '') +
       '<div class="spec"><dl>' +
         '<dt>Category</dt><dd>' + esc(cat.name) + '</dd>' +
+        (p.maker ? '<dt>Label</dt><dd>' + esc(p.maker) + '</dd>' : '') +
 
         '<dt>Ships from</dt><dd>' + esc(b.shipsFrom) + '</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
@@ -577,7 +580,7 @@ function viewBrand(id) {
                  : '<a href="#/join" class="btn btn-ink">Open an account</a>') + '</div>' +
     '</div>' +
     '<section style="max-width:70ch;margin-bottom:40px">' +
-      '<h2 style="font-size:26px;margin-bottom:12px">The farm</h2>' +
+      '<h2 style="font-size:26px;margin-bottom:12px">' + esc(b.storyHead || 'The farm') + '</h2>' +
       '<p style="color:var(--ink-soft);font-size:15.5px;line-height:1.7">' + esc(b.story) + '</p>' +
       '<p style="color:var(--ink-mute);font-size:13.5px;margin-top:14px">' + esc(b.prep) + '</p>' +
     '</section>' +
@@ -1009,7 +1012,7 @@ byId('q').addEventListener('input', function (e) {
   }, 260);
 });
 
-byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' Indian makers…';
+byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' Indian suppliers…';
 
 /* Delegated so cards appended by Show more work without rebinding. */
 document.addEventListener('click', function (e) {

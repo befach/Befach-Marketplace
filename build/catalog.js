@@ -2,6 +2,7 @@
    Builds catalog.json from every seeded source.
      - Two Brothers Organic Farms  <- twobrothersindiashop.csv
      - Happilo                     <- happilo-raw.json (Shopify products.json)
+     - Cococart                    <- cococart-raw.json (Shopify products.json)
    One shared taxonomy so a category means the same thing for both.
    ------------------------------------------------------------------ */
 const fs = require('fs');
@@ -89,7 +90,38 @@ const CATS = {
   'snacks-sweets':   { name:'Snacks & Mithai',       tagline:'Jaggery-sweetened laddoos and regional savouries',    hi:'मिठाई'},
   'wellness':        { name:'Ayurveda & Wellness',   tagline:'Chyawanprash, adaptogens and daily tonics',           hi:'आयुर्वेद'},
   'home-ritual':     { name:'Home & Ritual',         tagline:'Handmade dhoop and everyday puja essentials',         hi:'पूजा' },
+  /* Cococart's shelf. Its own product_type is the source of truth for these,
+     so they are never reached by RULES -- see cococartCategory. */
+  'chocolate':       { name:'Chocolate',            tagline:'Bars, pralines, truffles and dragées',                 hi:'चॉकलेट' },
+  'biscuits-spreads':{ name:'Biscuits & Spreads',   tagline:'Butter biscuits, wafers and cocoa spreads',            hi:'बिस्कट' },
+  'candy-gum':       { name:'Candy, Mints & Gum',   tagline:'Lollipops, chewy mints and chewing gum',               hi:'कैंडी' },
 };
+
+/* Cococart types every listing itself, and its own labels are cleaner than
+   anything a title regex would infer, so mirror them rather than run RULES.
+   Adding /chocolate/ to RULES was the alternative, and it would have dragged
+   Yogabar's dark-chocolate muesli and Whole Truth's cocoa bars out of the
+   categories they already sit in. */
+const CC_TYPES = {
+  'chocolates':                 'chocolate',
+  'chocolate':                  'chocolate',
+  'gift hampers':               'gifting',
+  'biscuits & spreads':         'biscuits-spreads',
+  'protein bars & supplements': 'bars',
+  'mints, candies & gums':      'candy-gum',
+  'mints & chewing gum':        'candy-gum',
+  'coffee & hot chocolate':     'coffee-tea',
+};
+/* Fifteen listings carry no type at all: four are empty gift boxes, one is
+   ground coffee, the rest are dragées and bars. */
+function cococartCategory(p) {
+  const hit = CC_TYPES[String(p.product_type || '').trim().toLowerCase()];
+  if (hit) return hit;
+  const t = p.title || '';
+  if (/\bcoffee\b/i.test(t)) return 'coffee-tea';
+  if (/\bbox\b|basket|hamper|flatpack/i.test(t)) return 'gifting';
+  return 'chocolate';
+}
 
 const VALUE_RULES = [
   ['organic',      /glyphosate-free|organic|no nasties|no additives|preservative free|no preservatives|100% natural|all natural/i],
@@ -103,7 +135,7 @@ const VALUE_RULES = [
   ['high-protein', /protein|fiber rich|fiber-rich|rich in protein|more fiber|rich in fibre|high fibre/i],
   ['superfood',    /superfood|super food|omega-3|omega 3|antioxidant|anti-oxidant|chia|flax|makhana|fox nut|nutrient-rich/i],
   ['low-gi',       /low gi|low-gi|glycemic|glycaemic|diabetic|diabeat/i],
-  ['vegan',        /vegan|plant-based|plant based|dairy-free|dairy free/i],
+  ['vegan',        /\bvegan\b|plant-based|plant based|dairy-free|dairy free/i],
 ];
 
 /* Rules driven by claim words rather than product nouns. Marketing copy says
@@ -199,10 +231,16 @@ function twoBrothersCsv() {
 /* ================= generic Shopify products.json reader =================
    Every store we have added so far exposes /products.json in the same shape,
    so one reader serves them all. Per-store quirks go in `opt`:
-     opt.keep       filter(rawProduct) -> boolean
-     opt.stripName  RegExp of brand noise to remove from titles
-     opt.title      (cleanTitle) -> string, overrides the default title cleanup
-     opt.usp        (rawProduct, cleanTitle) -> string, overrides the default
+     opt.keep         filter(rawProduct) -> boolean
+     opt.stripName    RegExp of brand noise to remove from titles
+     opt.title        (cleanTitle, rawProduct) -> string, overrides the default
+     opt.usp          (rawProduct, cleanTitle) -> string, overrides the default
+     opt.category     (rawProduct, cleanTitle) -> category key, skips RULES
+     opt.maker        (rawProduct) -> the label on the pack, when the brand
+                      record is a distributor rather than the maker
+     opt.allowNoImage keep listings the store published without a photo
+     opt.allStock     the feed carries no merch or vouchers, so skip the
+                      generic isNotStock filter
    ------------------------------------------------------------------------ */
 const decode = s => String(s || '')
   .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
@@ -239,6 +277,20 @@ function firstSentence(html) {
 
 /* Shopify serves resized images by filename suffix */
 const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_300x300$1$3');
+
+/* Every image on the site is hotlinked from the source store's own CDN --
+   nothing is copied into this repo. A handful of listings were published
+   with no photo at all, so those get this drawn-in-place tile rather than a
+   borrowed shot of a different product or a broken <img>. */
+const NO_IMAGE = 'data:image/svg+xml,' + encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="300">' +
+  '<rect width="300" height="300" fill="#F3EEE6"/>' +
+  '<rect x="92" y="112" width="116" height="82" rx="5" fill="none" stroke="#CBBEAA" stroke-width="4"/>' +
+  '<circle cx="123" cy="139" r="9" fill="#CBBEAA"/>' +
+  '<path d="m100 186 30-31 21 22 19-17 28 26" fill="none" stroke="#CBBEAA" ' +
+    'stroke-width="4" stroke-linejoin="round"/>' +
+  '<text x="150" y="224" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" ' +
+    'font-size="13" fill="#9B8E7B">No photo supplied</text></svg>');
 
 /* Vouchers and merch turn up in most of these feeds — gift cards, tote bags,
    shakers, even a children's picture book. None of it is shelf stock. */
@@ -297,6 +349,7 @@ function llmFeedSource(file, brandId, prefix) {
       badge: '',
       price: t.price, mrp: t.mrp, discount: t.discount,
       rating: 0, reviews: 0,
+      maker: '',
       /* this feed is one row per option, so a kept row is a single variant */
       variants: [{
         title: /default/i.test(p.pack_size || '') ? '' : String(p.pack_size).trim(),
@@ -310,9 +363,11 @@ function llmFeedSource(file, brandId, prefix) {
 function shopifySource(file, brandId, prefix, opt) {
   opt = opt || {};
   const raw = JSON.parse(fs.readFileSync(path.join(__dirname, file), 'utf8'));
-  return raw.filter(p => !isNotStock(p) && (opt.keep ? opt.keep(p) : true)).map((p, i) => {
+  return raw.filter(p => (opt.allStock || !isNotStock(p)) && (opt.keep ? opt.keep(p) : true))
+    .map((p, i) => {
     const priced = p.variants.filter(v => +v.price > 0);
-    if (!priced.length || !p.images.length) return null;
+    if (!priced.length) return null;
+    if (!p.images.length && !opt.allowNoImage) return null;
 
     /* The store's own default variant — first in feed order — so the price
        here is the one a shopper sees on the brand's product page. */
@@ -324,15 +379,16 @@ function shopifySource(file, brandId, prefix, opt) {
     /* Split on separators outside brackets: combo titles list their contents
        in parentheses and must not be torn in half. */
     const bits  = splitTopLevel(clean);
-    const title = opt.title ? opt.title(clean)
+    const title = opt.title ? opt.title(clean, p)
                 : (bits[0].replace(/\s*[-–]\s*\d+\s*(gms?|kgs?|ml|l)\s*$/i, '').trim() || clean);
 
     /* Card strapline drawn from the source's own words only — the title's
        trailing clauses, then its bullets, then its opening sentence. No
        invented copy: an empty description stays empty. */
-    const usp = bits.slice(1, 3).join(' | ').replace(/\s+/g, ' ').slice(0, 90) ||
-                bullets(p.body_html, 2).join(' | ').slice(0, 90) ||
-                firstSentence(p.body_html) || '';
+    const usp = opt.usp ? opt.usp(p, clean)
+              : (bits.slice(1, 3).join(' | ').replace(/\s+/g, ' ').slice(0, 90) ||
+                 bullets(p.body_html, 2).join(' | ').slice(0, 90) ||
+                 firstSentence(p.body_html) || '');
 
     const tags = (p.tags || []).join(' ');
     const badge = /New Arrival/i.test(tags)              ? 'New Launch'
@@ -350,7 +406,9 @@ function shopifySource(file, brandId, prefix, opt) {
       title, usp,
       desc: plainText(p.body_html, 700),     // the brand's own description
       brandId,
-      category: categorise(clean + ' ' + (p.product_type || ''),
+      maker: opt.maker ? opt.maker(p) : '',
+      category: opt.category ? opt.category(p, clean)
+              : categorise(clean + ' ' + (p.product_type || ''),
                            plainText(p.body_html).slice(0, 400)),
       values: valuesFor(hay),
       badge,
@@ -363,7 +421,7 @@ function shopifySource(file, brandId, prefix, opt) {
         const vt = pricing(x.price, x.compare_at_price);
         return { title: decode(x.title), price: vt.price, mrp: vt.mrp, discount: vt.discount };
       }).filter(x => !/^default title$/i.test(x.title) || priced.length === 1),
-      img:  shrink((p.images[0] || {}).src),
+      img:  p.images.length ? shrink(p.images[0].src) : NO_IMAGE,
       img2: shrink((p.images[1] || {}).src),
     };
     return opt.after ? opt.after(out, p) : out;
@@ -433,14 +491,49 @@ const products = shopifySource('tb-raw.json', 'two-brothers', 'tb', {
   .concat(shopifySource('nourish-raw.json', 'nourish', 'no', {
     stripName: /^Nourish Organics\s+/gi,
   }))
-  .concat(llmFeedSource('twt-feed.json', 'wholetruth', 'wt'));
+  .concat(llmFeedSource('twt-feed.json', 'wholetruth', 'wt'))
+  /* Cococart is a distributor, not a maker: one supplier record, 57 labels on
+     the packs. The whole shelf comes across -- no keep filter, and the three
+     listings the store published without a photo are kept too, so the count
+     here matches the count on cococart.in exactly. */
+  .concat(shopifySource('cococart-raw.json', 'cococart', 'cc', {
+    allStock: true,        /* confectionery only -- no merch to screen out, and
+                              isNotStock's /book/ was eating a Venchi gift pack */
+    allowNoImage: true,
+    category: cococartCategory,
+    maker: p => {
+      const v = (p.vendor || '').trim();
+      return /^(cococart|gift hampers)$/i.test(v) ? '' : v;    // house-packed
+    },
+    /* Weight is the only thing separating some listings ("Ballotin Box 250g"
+       from "Ballotin Box 500g"), so keep the title whole -- no splitting on
+       the comma, no stripping the trailing grammage. Only the maker's name
+       comes off the front, since the card prints it on its own line, and it
+       stays on when what is left would be a bare weight ("Lotus Biscoff
+       225g" -> "225g"). */
+    title: (clean, p) => {
+      const v = (p.vendor || '').trim();
+      if (!v || /^(cococart|gift hampers)$/i.test(v)) return clean;
+      if (clean.slice(0, v.length).toLowerCase() !== v.toLowerCase()) return clean;
+      const rest = clean.slice(v.length).replace(/^\s*[-–:]\s*/, '').replace(/\s+/g, ' ').trim();
+      return /[a-z]{3}/i.test(rest) ? rest : clean;
+    },
+    usp: p => bullets(p.body_html, 2).join(' | ').slice(0, 90) ||
+              firstSentence(p.body_html) || '',
+  }));
 
-// slugs must stay unique across sources
+/* Slugs must stay unique across sources: find() resolves a route by slug, so
+   a collision makes one of the pair unreachable. Suffixing the source prefix
+   was not enough -- slug() truncates at 60 chars, which collapsed three
+   distinct Slurrp handles onto one string that then all took the same '-sl'.
+   The full id is unique by construction. */
 const seen = {};
 products.forEach(p => {
-  if (seen[p.slug]) p.slug = p.slug + '-' + p.id.split('-')[0];
+  if (seen[p.slug]) p.slug = p.slug + '-' + p.id;
   seen[p.slug] = 1;
 });
+const dupes = products.length - new Set(products.map(p => p.slug)).size;
+if (dupes) console.log('  !! duplicate slugs after dedup:', dupes);
 
 const categories = Object.entries(CATS).map(([key, meta]) => ({
   key, ...meta, count: products.filter(p => p.category === key).length,
