@@ -6,12 +6,38 @@
 (function () {
 'use strict';
 
-var D          = window.BEFACH;
-var PRODUCTS   = D.products;
-var CATEGORIES = D.categories;
-var BRANDS     = D.brands;
-var PIPELINE   = D.pipeline;
-var VALUES     = D.values;
+var D = window.BEFACH;
+
+/* A brand carries `hidden` when it is parked rather than gone: the record and
+   every one of its products stay in the payload, and only this filter keeps
+   them off the shop front. Clear the flag in build/data.js and the brand, its
+   products, its category counts and its filter row all come back. */
+function live(list) {
+  return list.filter(function (b) { return !b.hidden; });
+}
+var BRANDS   = live(D.brands);
+var PIPELINE = live(D.pipeline);
+var SHOWN    = {};  BRANDS.forEach(function (b) { SHOWN[b.id] = 1; });
+var PRODUCTS = D.products.filter(function (p) { return SHOWN[p.brandId]; });
+/* Same recut for the value filters. The taxonomy was written for a pantry
+   catalogue, so a couple of its keys have nothing behind them here, and an
+   empty filter row is worse than a missing one. */
+var VALUES = D.values.filter(function (v) {
+  return D.products.some(function (p) {
+    return SHOWN[p.brandId] && p.values.indexOf(v.key) > -1;
+  });
+});
+
+/* Category counts are baked into the payload across the whole catalogue, so
+   they have to be recut against what is actually on show -- otherwise the
+   rail offers a category with nothing behind it. */
+var CATEGORIES = D.categories.map(function (c) {
+  var out = {};
+  for (var k in c) { if (Object.prototype.hasOwnProperty.call(c, k)) out[k] = c[k]; }
+  out.count = PRODUCTS.filter(function (p) { return p.category === c.key; }).length;
+  return out;
+}).filter(function (c) { return c.count; })
+  .sort(function (a, b) { return b.count - a.count; });
 
 var CAT = {};  CATEGORIES.forEach(function (c) { CAT[c.key] = c; });
 var BR  = {};  BRANDS.forEach(function (b) { BR[b.id] = b; });
@@ -120,8 +146,8 @@ function syncChrome() {
 function promptSignup() {
   openModal(
     '<h3>Ordering is for trade accounts</h3>' +
-    '<p>Befach is a business-to-business market. Open a free retailer account to place ' +
-    'orders, unlock 60-day payment terms and start with no minimum.</p>' +
+    '<p>Befach is a business-to-business market. Open a free retailer account to see ' +
+    'trade rates and place orders.</p>' +
     '<a href="#/join" class="btn btn-ink btn-block btn-lg" onclick="BefachUI.closeModal()">Open a retailer account</a>' +
     '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="BefachUI.closeModal()">Not now</button>'
   );
@@ -247,11 +273,11 @@ function viewHome() {
   return '' +
   '<section class="hero"><div class="wrap hero-grid">' +
     '<div>' +
-      '<span class="eyebrow">Wholesale, made in India</span>' +
-      '<h1>Stock your shelves with what <em>India actually makes</em>.</h1>' +
-      '<p class="hero-sub">Befach puts independent Indian makers — farm kitchens, cold-press mills, ' +
-      'weavers and potters — in front of the shops that should be carrying them. ' +
-      'Wholesale rates, 60-day terms, one order across every brand.</p>' +
+      '<span class="eyebrow">Wholesale confectionery</span>' +
+      '<h1>The whole chocolate aisle, on <em>one invoice</em>.</h1>' +
+      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and the Indian ' +
+      'labels alongside them — ' + BRANDS.length + ' names a shop would otherwise open ' +
+      BRANDS.length + ' separate accounts to carry. Wholesale rates, one order, one delivery.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Open a retailer account</a>' +
         '<a href="#/sell" class="btn btn-ghost btn-lg">I make things &rarr;</a>' +
@@ -267,20 +293,21 @@ function viewHome() {
   '</div></section>' +
 
   '<section class="trust"><div class="wrap trust-grid">' +
-    trustItem('M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'Pay 60 days later',
-      'Take stock now, pay after it has sold. Standard on every Befach order.') +
+    trustItem('M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'Dispatched in 3-5 days',
+      'Held in temperature-controlled storage and picked the day your order clears.') +
     trustItem('M20 6 9 17l-5-5', 'Free returns on openers',
       'Your first order from any brand is returnable. Trying a brand costs nothing.') +
     trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'One cart, every brand',
-      'Mix twelve makers into a single order, a single invoice, a single delivery.') +
-    trustItem('M12 2 3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z', 'Vetted makers only',
-      'FSSAI, GST and lab papers checked before a brand ever goes live.') +
+      'Mix ' + BRANDS.length + ' labels into a single order, a single invoice, a single delivery.') +
+    trustItem('M12 2 3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z', 'Import papers in order',
+      'FSSAI, GST and customs documentation checked before a label ever goes live.') +
   '</div></section>' +
 
   '<section class="sec"><div class="wrap">' +
     '<div class="sec-head"><div>' +
       '<h2>Shop by category</h2>' +
-      '<p>Twelve shelves of Indian pantry staples, sourced from the farm that grew them.</p>' +
+      '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, every one ' +
+      'stocked and shipped from Navi Mumbai.</p>' +
     '</div><a class="link-more" href="#/browse">See all ' + PRODUCTS.length + ' products</a></div>' +
     '<div class="cat-grid">' + catTiles + '</div>' +
   '</div></section>' +
@@ -304,7 +331,7 @@ function viewHome() {
         '<div class="spot-copy">' +
           '<span class="eyebrow">' + (i === 0 ? 'Brand in focus' : 'Also on Befach') + '</span>' +
           '<h2>' + esc(b.name) + '</h2>' +
-          '<p>' + esc(b.story) + '</p>' +
+          '<p>' + esc(b.story || b.tagline) + '</p>' +
           '<div class="spot-meta">' +
             '<div><span>Ships from</span><b>' + esc(b.shipsFrom) + '</b></div>' +
             '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
@@ -323,7 +350,7 @@ function viewHome() {
   (BRANDS.length > 2
     ? '<section class="sec-tight"><div class="wrap">' +
         '<div class="sec-head"><div><h2>More brands on Befach</h2>' +
-        '<p>Every one vetted, on 60-day terms, in the same cart.</p></div>' +
+        '<p>Every one vetted, all of them in the same cart.</p></div>' +
         '<a class="link-more" href="#/browse">Shop all ' + PRODUCTS.length + ' products</a></div>' +
         '<div class="pipeline-grid">' + BRANDS.slice(2).map(function (b) {
           var n = PRODUCTS.filter(function (p) { return p.brandId === b.id; }).length;
@@ -403,7 +430,7 @@ function viewBrowse(params) {
             : 'All products';
   var sub = cats.length === 1 ? CAT[cats[0]].tagline
           : brs.length  === 1 ? BR[brs[0]].tagline
-          : 'Across every Indian maker on Befach';
+          : 'Across every label on Befach';
 
   /* filter rail */
   function fopts(group, items, active) {
@@ -438,8 +465,10 @@ function viewBrowse(params) {
   return '<div class="wrap browse">' +
     '<aside class="filters">' +
       '<div class="fgroup"><h4>Brand</h4>' + fopts('b', brandItems, brs) +
-        '<p style="font-size:12px;color:var(--ink-mute);margin-top:9px;line-height:1.5">' +
-        PIPELINE.length + ' more brands onboarding this quarter.</p></div>' +
+        (PIPELINE.length
+          ? '<p style="font-size:12px;color:var(--ink-mute);margin-top:9px;line-height:1.5">' +
+            PIPELINE.length + ' more brands onboarding this quarter.</p>'
+          : '') + '</div>' +
       '<div class="fgroup"><h4>Category</h4>' + fopts('cat', catItems, cats) + '</div>' +
       '<div class="fgroup"><h4>Values</h4>' + fopts('v', valItems, vals) + '</div>' +
       '<div class="fgroup" style="border:0">' +
@@ -526,7 +555,7 @@ function viewProduct(slug) {
       '</div>' +
       (p.desc
         ? '<div class="pdp-desc"><h3>About this product</h3><p>' + esc(p.desc) + '</p>' +
-          '<span class="src-note">Description as published by ' + esc(b.name) + '</span></div>'
+          '<span class="src-note">Description as published by the supplier</span></div>'
         : '') +
       '<div class="spec"><dl>' +
         '<dt>Category</dt><dd>' + esc(cat.name) + '</dd>' +
@@ -535,7 +564,6 @@ function viewProduct(slug) {
         '<dt>Ships from</dt><dd>' + esc(b.shipsFrom) + '</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
         '<dt>Opening order</dt><dd>' + rupee(b.openingMin) + ' minimum</dd>' +
-        '<dt>Payment</dt><dd>Net 60 · pay 60 days after delivery</dd>' +
         '<dt>Returns</dt><dd>Free on your opening order</dd>' +
         (p.values.length ? '<dt>Values</dt><dd>' + p.values.map(function (v) {
           return esc(VAL[v].label); }).join(' · ') + '</dd>' : '') +
@@ -565,7 +593,8 @@ function viewBrand(id) {
       '<div class="brand-hero-veil"></div>' +
       '<div class="brand-hero-in">' +
         '<h1>' + esc(b.name) + '</h1>' +
-        '<div class="loc"><span>' + esc(b.city) + ', ' + esc(b.state) + '</span><span>·</span>' +
+        '<div class="loc"><span>' + (b.origin ? 'Made in ' + esc(b.origin)
+            : esc(b.city) + ', ' + esc(b.state)) + '</span><span>·</span>' +
         (b.since ? '<span>Since ' + b.since + '</span><span>·</span>' : '') +
         '<span>' + list.length + ' products</span></div>' +
         '<div class="badge-row">' + b.values.map(function (v) {
@@ -575,16 +604,16 @@ function viewBrand(id) {
     '</div>' +
     '<div class="brand-bar">' +
       '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
-      '<div><span>Reorder minimum</span><b>' + rupee(b.reorderMin) + '</b></div>' +
       '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
-      '<div><span>Payment</span><b>Net 60</b></div>' +
       '<div class="grow">' +
         (account ? '<a href="#/browse" class="btn btn-ink">Build an order</a>'
                  : '<a href="#/join" class="btn btn-ink">Open an account</a>') + '</div>' +
     '</div>' +
     '<section style="max-width:70ch;margin-bottom:40px">' +
-      '<h2 style="font-size:26px;margin-bottom:12px">' + esc(b.storyHead || 'The farm') + '</h2>' +
-      '<p style="color:var(--ink-soft);font-size:15.5px;line-height:1.7">' + esc(b.story) + '</p>' +
+      (b.story
+        ? '<h2 style="font-size:26px;margin-bottom:12px">' + esc(b.storyHead || 'The farm') + '</h2>' +
+          '<p style="color:var(--ink-soft);font-size:15.5px;line-height:1.7">' + esc(b.story) + '</p>'
+        : '') +
       '<p style="color:var(--ink-mute);font-size:13.5px;margin-top:14px">' + esc(b.prep) + '</p>' +
     '</section>' +
     byCat.map(function (c) {
@@ -691,10 +720,9 @@ function viewCart() {
       '<div class="sum-line"><span>GST (5%)</span><span>' + rupee(gst) + '</span></div>' +
       '<div class="sum-line"><span>Freight</span><span>' +
         (freight ? rupee(freight) : 'Free') + '</span></div>' +
-      '<div class="sum-line total"><span>Due in 60 days</span><span>' +
+      '<div class="sum-line total"><span>Order total</span><span>' +
         rupee(sub + gst + freight) + '</span></div>' +
       '<p style="font-size:12px;color:var(--ink-mute);margin:12px 0 16px;line-height:1.5">' +
-        'Nothing is charged today. Payment is collected 60 days after delivery. ' +
         'Your opening order from each brand is fully returnable.</p>' +
       '<button class="btn btn-ink btn-lg btn-block"' + (shortBy.length ? ' disabled' : '') +
         ' id="placeBtn">Place order</button>' +
@@ -735,10 +763,9 @@ function viewJoin() {
         '<button class="btn btn-ink btn-lg btn-block" type="submit">Create account</button>' +
       '</form>' +
       '<ul class="perks">' +
-        perk('60 days to pay on every order, from day one.') +
+        perk('Trade rates across every label, from day one.') +
         perk('Free returns on your first order from any brand.') +
-        perk('No minimum on your opening order.') +
-        perk('One invoice and one delivery across every maker.') +
+        perk('One invoice and one delivery across every label.') +
       '</ul>' +
       '<p style="font-size:12px;color:var(--ink-mute);margin-top:20px">' +
       'Prototype: no data leaves your browser.</p>' +
@@ -781,8 +808,8 @@ function viewSell() {
       '<p>A CSV of products, wholesale rates, MRP and case packs. We build the storefront, ' +
       'the photography grid and the search listings for you.</p></div>' +
       '<div class="step"><div class="step-n">03</div><h4>We carry the risk</h4>' +
-      '<p>You are paid on dispatch. Befach extends the 60-day terms to the retailer and absorbs ' +
-      'any default. Returns on opening orders are on us too.</p></div>' +
+      '<p>You are paid on dispatch, and Befach absorbs any default. Returns on opening ' +
+      'orders are on us too.</p></div>' +
     '</div>' +
   '</div></section>' +
 
@@ -970,7 +997,7 @@ function bindView(r) {
     openModal(
       '<h3>Order placed</h3>' +
       '<p>' + esc(who) + ' been notified and will dispatch within their stated lead times. ' +
-      '<b>' + rupee(total) + '</b> plus GST is due 60 days after delivery — nothing is charged today.</p>' +
+      'Order total <b>' + rupee(total) + '</b> plus GST.</p>' +
       '<button class="btn btn-ink btn-block btn-lg" id="okBtn">Done</button>'
     );
     byId('okBtn').addEventListener('click', function () {
@@ -1022,7 +1049,7 @@ byId('q').addEventListener('input', function (e) {
   }, 260);
 });
 
-byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' Indian suppliers…';
+byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' brands…';
 
 /* Delegated so cards appended by Show more work without rebinding. */
 document.addEventListener('click', function (e) {

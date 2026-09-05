@@ -276,6 +276,23 @@ function firstSentence(html) {
   return s.length > 78 ? s.slice(0, 75).replace(/\s+\S*$/, '') + '…' : s;
 }
 
+/* "Country of Origin - Belgium" sits near the foot of most cococart
+   descriptions. The source is inconsistent about case (NETHERLANDS next to
+   Belgium), so normalise it, leaving initialisms upper. */
+function originOf(html) {
+  const m = plainText(html).match(
+    /Country of Origin\s*[:\u2013\u2014-]*\s*([A-Za-z][A-Za-z .'-]{2,28})/i);
+  if (!m) return '';
+  /* one listing runs the label straight into the next field:
+     "Country of Origin Switzerland Exp Date ..." */
+  const cut = m[1].split(
+    /\sExp\b|\sBest\b|\sNet\b|\sMRP\b|\sShelf\b|\sWeight\b|\sIngredient|\sPacked\b|\sMarketed\b/i)[0];
+
+  return cut.trim().replace(/[.\s]+$/, '').split(/\s+/).map(w =>
+    /^(usa|uae|uk)$/i.test(w) ? w.toUpperCase()
+      : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
 /* Shopify serves resized images by filename suffix */
 const shrink = u => String(u || '').replace(/(\.(jpg|jpeg|png|webp))(\?|$)/i, '_600x600$1$3');
 /* Product-page gallery: every source image, large enough to fill the stage */
@@ -511,10 +528,13 @@ const products = shopifySource('tb-raw.json', 'two-brothers', 'tb', {
                               isNotStock's /book/ was eating a Venchi gift pack */
     allowNoImage: true,
     category: cococartCategory,
-    maker: p => {
-      const v = (p.vendor || '').trim();
-      return /^(cococart|gift hampers)$/i.test(v) ? '' : v;    // house-packed
-    },
+    /* The vendor verbatim. build/data.js turns these labels into the brand
+       records themselves, so nothing is blanked here -- the house-packed
+       lines need a label too. */
+    maker: p => (p.vendor || '').trim(),
+    /* Country of origin, in the store's own words. It is stated on 563 of
+       the 566 listings, which is why no hand-written origin table exists. */
+    after: (out, p) => { out.origin = originOf(p.body_html); return out; },
     /* Weight is the only thing separating some listings ("Ballotin Box 250g"
        from "Ballotin Box 500g"), so keep the title whole -- no splitting on
        the comma, no stripping the trailing grammage. Only the maker's name

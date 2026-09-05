@@ -3,7 +3,13 @@
 A working prototype of the Faire model rebuilt for India: independent Indian
 makers sell wholesale to independent Indian retailers.
 
-**1,532 products · 13 suppliers · 29 categories**, seeded from real catalogues.
+**566 products · 53 brands · 6 categories** on the shop front, seeded from real catalogues.
+
+A further **966 products across 12 Indian D2C brands** are still in the payload and
+still build, but every one of those brand records carries `hidden: true` and the
+client filters them out. Nothing was deleted: clear the flag in `build/data.js`,
+rebuild, and the brand, its products, its category counts and its filter row all
+come back. See **Visibility** below.
 
 ## See it live
 
@@ -30,6 +36,41 @@ Then open http://localhost:4321 — no build step needed, `docs/` is ready to se
 
 `befach-artifact.html` is the same site as a single self-contained file (12.5 MB,
 every image inlined) — open it directly or host it anywhere, no server needed.
+
+## Visibility
+
+`build/data.js` stamps `hidden: true` on the twelve seeded Indian D2C brands and on
+the five onboarding placeholders. `docs/assets/app.js` filters on that flag once, at
+load, and derives everything else from what survives:
+
+- `BRANDS` / `PIPELINE` -- only unhidden records
+- `PRODUCTS` -- only products whose brand is shown
+- `CATEGORIES` -- counts recut against the visible set, empties dropped
+- `VALUES` -- value filters with nothing behind them dropped
+
+So hiding or unhiding a brand is one boolean plus `npm run build`. The payload still
+carries all 1,532 products either way.
+
+## The confectionery range
+
+The 566 confectionery listings come from one distributor, which does not make what it
+sells: they carry 53 other companies' labels. Those labels are the brands the shop
+front shows -- `build/data.js` groups the products by vendor, merges the spellings
+that are the same company (`Maltesers`/`Malteser`, `St. Michel`/`St Michel`,
+`Werther's`/`Werthers`), and builds a brand record per label. The distributor is not
+named anywhere the shop front renders.
+
+Each label's record is derived, never invented:
+
+| field | where it comes from |
+|---|---|
+| `origin` | the "Country of Origin" line in the source's own product copy, on 522 of 566 |
+| `tagline` | the label's dominant category plus that origin |
+| `story` | left empty on purpose -- no invented history for a real company |
+| `values` | left empty -- no claims the pack has not made |
+| `openingMin` | flat Rs 5,000 |
+
+There is no reorder minimum and no payment term on any brand, so none is rendered.
 
 ## Data sources
 

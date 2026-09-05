@@ -211,7 +211,78 @@ cat.products.forEach(p => {
   p.img2 = p.img2.replace(/_1200x\./, '_600x.');
 });
 
-const payload = { products: cat.products, categories: cat.categories, brands, pipeline, values };
+/* ================= what the shop front shows =================
+   Everything seeded before the confectionery range stays in the payload but
+   is flagged hidden, and the client renders only unhidden brands and their
+   products. Nothing is deleted: clear the flag on a record and it comes
+   straight back, counts and all. */
+brands.forEach(b => { b.hidden = true; });
+pipeline.forEach(b => { b.hidden = true; });
+
+/* ---- the labels become the brands ----
+   The distributor does not make what it sells, so its listings carry other
+   companies' labels. Those labels are the brands the shop front shows, which
+   is also why the distributor is named nowhere in the payload's copy. */
+const LABEL_ALIAS = {                    // one company, two spellings in the feed
+  'Maltesers':          'Malteser',
+  'St. Michel':         'St Michel',
+  "Werther's":         "Werther's Original",
+  'Werthers':           "Werther's Original",
+  'Cavendish & Harvey': 'Cavendish',
+  'Cococart India':     'Gift Hampers',  // house packaging, filed with the hampers
+};
+const ACCENTS = ['#6B4226', '#1B3A5C', '#B7412C', '#3F6B4A', '#7A5C9E',
+                 '#C08A2E', '#25406B', '#5A7A3F', '#C0562A', '#2F5D50'];
+
+const idOf = s => String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-')
+  .replace(/^-|-$/g, '').slice(0, 40);
+const mode = xs => {                     // most common value, ties broken by first seen
+  const n = {};
+  xs.forEach(x => { n[x] = (n[x] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || '';
+};
+const CAT_NAME = {};
+cat.categories.forEach(c => { CAT_NAME[c.key] = c.name; });
+
+const groups = {};
+cat.products.filter(p => p.brandId === 'cococart').forEach(p => {
+  const label = LABEL_ALIAS[p.maker] || p.maker || 'Gift Hampers';
+  (groups[label] = groups[label] || []).push(p);
+});
+
+/* Biggest range first, so the two home-page spotlights land on labels with
+   something to show rather than on whichever one sorts first. */
+const labelBrands = Object.keys(groups)
+  .sort((a, b) => groups[b].length - groups[a].length || a.localeCompare(b))
+  .map((name, i) => {
+    const mine   = groups[name];
+    const id     = idOf(name);
+    const origin = mode(mine.map(p => p.origin).filter(Boolean));
+    const topCat = CAT_NAME[mode(mine.map(p => p.category))] || 'Chocolate';
+    /* The label is the brand now, so the per-product maker line would just
+       repeat the brand link above it. */
+    mine.forEach(p => { p.brandId = id; p.maker = ''; });
+    return {
+      id, name, short: name, origin,
+      tagline: origin ? topCat + ' from ' + origin : topCat,
+      story: '',                         // no invented history for a real company
+      values: [],                        // and no claims it has not made
+      openingMin: 5000, leadDays: '3-5', shipsFrom: 'Navi Mumbai, MH',
+      prep: (origin === 'India' ? 'Made in India' : 'Imported stock') +
+            ' · FSSAI licensed · Temperature-controlled storage',
+      accent: ACCENTS[i % ACCENTS.length],
+    };
+  });
+
+/* The distributor writes its own name into the hamper copy it publishes. */
+cat.products.forEach(p => {
+  p.desc = p.desc.replace(/coco\s*cart(?:'|\u2019)s\b/gi, 'our')
+                 .replace(/coco\s*cart/gi, 'the supplier');
+});
+
+const allBrands = brands.concat(labelBrands);
+const payload = { products: cat.products, categories: cat.categories,
+                  brands: allBrands, pipeline, values };
 fs.writeFileSync(path.join(__dirname, '..', 'docs', 'assets', 'data.js'),
   'window.BEFACH = ' + JSON.stringify(payload) + ';\n');
 
@@ -237,11 +308,20 @@ console.log('  asset versions', ['styles.css', 'data.js', 'app.js']
   .map(f => f.split('.')[0] + '=' + stamp(f)).join(' '));
 console.log('  products  ', cat.products.length);
 console.log('  categories', cat.categories.length);
-console.log('  brands    ', brands.length, 'live +', pipeline.length, 'onboarding');
-brands.forEach(b => console.log('   ', b.short.padEnd(14),
-  cat.products.filter(p => p.brandId === b.id).length, 'products'));
-const unknown = cat.products.filter(p => !brands.some(b => b.id === p.brandId));
+const shown  = allBrands.filter(b => !b.hidden);
+const hidden = allBrands.filter(b => b.hidden);
+const count  = b => cat.products.filter(p => p.brandId === b.id).length;
+console.log('  brands    ', shown.length, 'shown +', hidden.length, 'hidden +',
+  pipeline.length, 'onboarding (hidden)');
+console.log('  on the shop front', shown.reduce((n, b) => n + count(b), 0), 'products:');
+shown.forEach(b => console.log('    ', b.short.padEnd(22), String(count(b)).padStart(3),
+  b.origin ? '· ' + b.origin : ''));
+console.log('  hidden, still in the payload:',
+  hidden.map(b => b.short + ' ' + count(b)).join(', '));
+const unknown = cat.products.filter(p => !allBrands.some(b => b.id === p.brandId));
 if (unknown.length) console.log('  !! products with no brand record:', unknown.length);
+const orphan = shown.filter(b => !count(b));
+if (orphan.length) console.log('  !! shown brands with no products:', orphan.map(b => b.id).join(', '));
 const badVal = new Set();
 cat.products.forEach(p => p.values.forEach(v => { if (!values.some(x => x.key === v)) badVal.add(v); }));
 if (badVal.size) console.log('  !! value keys with no record:', [...badVal].join(', '));
