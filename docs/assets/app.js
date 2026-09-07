@@ -65,6 +65,51 @@ var account = load('befach.account', null);   // null = pricing locked, Faire-st
    store -- see the note viewAdmin renders. */
 var orders  = load('befach.orders', []);
 
+/* ---------------- the order sheet ----------------
+   Nothing here serves the shop front: localStorage stays the source of truth
+   for what the buyer and the admin page see, and this only copies a placed
+   order out to a Google Sheet the office can work from. The receiving end is
+   an Apps Script web app bound to that sheet, deployed to run as its owner,
+   so the page needs no key beyond the shared string below -- which travels in
+   this file and is therefore a filter against crawlers, not a secret. */
+var SHEET_URL = 'https://script.google.com/macros/s/AKfycbxus9uW8Ng0wozqP-8GbO9dBpFpYs-Jp3T8r4Mb64lzqdNzuCYu81mX1F_Xn7fVWZjvAg/exec';
+var SHEET_KEY = 'QBTO0I8PX3p_WBpJKYZK1syvO_RRGKVz';   // must match SECRET in the Apps Script
+
+/* The post is made by the browser that placed the order, so it can fail on a
+   dropped connection with the order already saved. Queue it and try again on
+   the next load rather than lose it -- the script skips an order id it has
+   already written, so a retry cannot double up. */
+function relay(kind, payload) {
+  if (!SHEET_URL || !SHEET_KEY) return;
+  var q = load('befach.relay', []);
+  q.push({ kind: kind, payload: payload });
+  save('befach.relay', q.slice(-50));   // a queue that never drains is a leak
+  flushRelay();
+}
+function flushRelay() {
+  var q = load('befach.relay', []);
+  if (!SHEET_URL || !SHEET_KEY || !q.length || flushRelay.busy) return;
+  flushRelay.busy = true;
+  var item = q[0], body = { secret: SHEET_KEY, kind: item.kind };
+  body[item.kind] = item.payload;
+  var drop = function () { save('befach.relay', load('befach.relay', []).slice(1)); };
+  fetch(SHEET_URL, {
+    method: 'POST',
+    /* text/plain keeps this a simple request. application/json would trigger a
+       CORS preflight, and Apps Script does not answer one. */
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(body)
+  }).then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j && j.ok) { drop(); return; }
+      /* A rejected key or an unknown kind will be rejected every time too, so
+         retrying it forever only blocks the orders queued behind it. */
+      if (j && (j.error === 'auth' || j.error === 'unknown kind')) drop();
+    })
+    .catch(function () {})            // a network failure keeps its place
+    .then(function () { flushRelay.busy = false; });
+}
+
 /* ---------------- helpers ---------------- */
 var inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 function rupee(n) { return '₹' + inr.format(Math.round(n || 0)); }
@@ -1204,6 +1249,7 @@ function bindView(r) {
     var order = snapshotOrder();
     orders.unshift(order);
     save('befach.orders', orders);
+    relay('order', order);
     /* Empty the cart here, not on the Done button. The modal offers a second
        way out -- View it in Orders -- and leaving the clear on one of the two
        buttons meant taking that route left a placed order sitting in a full
@@ -1262,6 +1308,8 @@ function bindView(r) {
     signIn(byId('shop').value.trim(), byId('city').value.trim(),
            (byId('gst') || {}).value ? byId('gst').value.trim() : '',
            (byId('type') || {}).value || '');
+    relay('lead', { shop: account.shop, city: account.city, gst: account.gst,
+                    type: account.type, page: location.href });
     location.hash = '#/browse';
   });
   var out = byId('signOutBtn');
@@ -1306,5 +1354,6 @@ window.addEventListener('hashchange', function () { render(); window.scrollTo(0,
 window.addEventListener('scroll', drift, { passive: true });
 window.addEventListener('resize', drift);
 render();
+flushRelay();                        // anything a dropped connection left behind
 
 })();
