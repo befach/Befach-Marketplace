@@ -11,20 +11,24 @@ var D = window.BEFACH;
 /* A brand carries `hidden` when it is parked rather than gone: the record and
    every one of its products stay in the payload, and only this filter keeps
    them off the shop front. Clear the flag in build/data.js and the brand, its
-   products, its category counts and its filter row all come back. */
+   products, its category counts and its filter row all come back.
+   A single product carries the same flag -- the shop front is an import book,
+   so a listing that states India as its country of origin is parked even when
+   the label around it is not. */
 function live(list) {
   return list.filter(function (b) { return !b.hidden; });
 }
 var BRANDS   = live(D.brands);
 var PIPELINE = live(D.pipeline);
 var SHOWN    = {};  BRANDS.forEach(function (b) { SHOWN[b.id] = 1; });
-var PRODUCTS = D.products.filter(function (p) { return SHOWN[p.brandId]; });
+function onSale(p) { return SHOWN[p.brandId] && !p.hidden; }
+var PRODUCTS = D.products.filter(onSale);
 /* Same recut for the value filters. The taxonomy was written for a pantry
    catalogue, so a couple of its keys have nothing behind them here, and an
    empty filter row is worse than a missing one. */
 var VALUES = D.values.filter(function (v) {
   return D.products.some(function (p) {
-    return SHOWN[p.brandId] && p.values.indexOf(v.key) > -1;
+    return onSale(p) && p.values.indexOf(v.key) > -1;
   });
 });
 
@@ -48,6 +52,13 @@ function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } c
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
 var cart    = load('befach.cart', []);
+/* A saved line whose product has since been parked no longer resolves, and the
+   cart page can only render what it can find. Drop those on load so the header
+   count never runs ahead of the lines underneath it. */
+(function () {
+  var keep = cart.filter(function (l) { return find(l.id); });
+  if (keep.length !== cart.length) { cart = keep; save('befach.cart', cart); }
+}());
 var account = load('befach.account', null);   // null = pricing locked, Faire-style
 /* Placed orders, newest first. There is no backend behind this build, so an
    order lives in the browser that placed it and the admin page reads the same
@@ -66,6 +77,11 @@ function byId(id) { return document.getElementById(id); }
 function find(id) { return PRODUCTS.filter(function (p) { return p.slug === id || p.id === id; })[0]; }
 function q(sel, root) { return (root || document).querySelector(sel); }
 function qa(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
+
+/* Where a label's stock is brought in from. Blank on a label whose listings
+   come from too many countries to name one -- the product page carries the
+   per-listing origin either way. */
+function importedFrom(b) { return (b && (b.importedFrom || b.origin)) || ''; }
 
 /* The option a buyer picked, by title; falls back to the product default. */
 function defaultVariant(p) { return (p.variants && p.variants[0]) || p; }
@@ -157,7 +173,7 @@ function promptSignup() {
   );
 }
 function signIn(shop, city, gst, type) {
-  account = { shop: shop || 'Demo Retail', city: city || 'Bengaluru',
+  account = { shop: shop || 'Demo Retail', city: city || 'City',
               gst: gst || '', type: type || '', since: Date.now() };
   save('befach.account', account);
   syncChrome();
@@ -278,10 +294,10 @@ function viewHome() {
   return '' +
   '<section class="hero"><div class="wrap hero-grid">' +
     '<div>' +
-      '<span class="eyebrow">Wholesale confectionery</span>' +
-      '<h1>The whole chocolate aisle, on <em>one invoice</em>.</h1>' +
-      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and the Indian ' +
-      'labels alongside them — ' + BRANDS.length + ' names a shop would otherwise open ' +
+      '<span class="eyebrow">Wholesale exported chocolates</span>' +
+      '<h1>The whole exported chocolate aisle, on <em>one invoice</em>.</h1>' +
+      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other export-led ' +
+      'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
       BRANDS.length + ' separate accounts to carry. Wholesale rates, one order, one delivery.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Open a retailer account</a>' +
@@ -311,8 +327,7 @@ function viewHome() {
   '<section class="sec"><div class="wrap">' +
     '<div class="sec-head"><div>' +
       '<h2>Shop by category</h2>' +
-      '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, every one ' +
-      'stocked and shipped from Navi Mumbai.</p>' +
+      '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, ready for your next order.</p>' +
     '</div><a class="link-more" href="#/browse">See all ' + PRODUCTS.length + ' products</a></div>' +
     '<div class="cat-grid">' + catTiles + '</div>' +
   '</div></section>' +
@@ -338,7 +353,8 @@ function viewHome() {
           '<h2>' + esc(b.name) + '</h2>' +
           '<p>' + esc(b.story || b.tagline) + '</p>' +
           '<div class="spot-meta">' +
-            '<div><span>Ships from</span><b>' + esc(b.shipsFrom) + '</b></div>' +
+            (importedFrom(b)
+              ? '<div><span>Imported from</span><b>' + esc(importedFrom(b)) + '</b></div>' : '') +
             '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
             '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
           '</div>' +
@@ -363,7 +379,7 @@ function viewHome() {
             '<div class="mono" style="background:' + esc(b.accent) + '">' +
               esc(b.short.charAt(0)) + '</div>' +
             '<h5>' + esc(b.name) + '</h5>' +
-            '<span>' + esc(b.shipsFrom) + '</span>' +
+            '<span>' + (importedFrom(b) ? esc(importedFrom(b)) : 'Export-led range') + '</span>' +
             '<span>' + n + ' products</span></a>';
         }).join('') + '</div>' +
       '</div></section>'
@@ -390,7 +406,7 @@ function viewHome() {
     '<div class="pipeline-grid">' + PIPELINE.map(function (b) {
       return '<div class="pbrand"><div class="mono" style="background:' + esc(b.accent) + '">' +
         esc(b.name.charAt(0)) + '</div><h5>' + esc(b.name) + '</h5>' +
-        '<span>' + esc(b.cat) + '</span><span>' + esc(b.city) + '</span></div>';
+        '<span>' + esc(b.cat) + '</span><span>Trade-ready</span></div>';
     }).join('') + '</div>' +
   '</div></section>' +
 
@@ -535,11 +551,12 @@ function snapshotOrder() {
         var p = find(l.id), v = variantOf(p, l.size);
         return { id: p.id, slug: p.slug, title: p.title, img: p.img,
                  category: (CAT[p.category] || {}).name || p.category,
+                 origin: p.origin || '',
                  size: v.title || '', unit: v.price, mrp: v.mrp || 0,
                  qty: l.qty, total: v.price * l.qty };
       });
     var sub = lines.reduce(function (n, l) { return n + l.total; }, 0);
-    return { id: b.id, name: b.name, origin: b.origin || '', shipsFrom: b.shipsFrom || '',
+    return { id: b.id, name: b.name, origin: b.origin || '', importedFrom: importedFrom(b),
              leadDays: b.leadDays || '', openingMin: b.openingMin, subtotal: sub,
              met: sub >= b.openingMin, freight: sub >= b.openingMin ? 0 : 850, lines: lines };
   }).filter(function (g) { return g.lines.length; });
@@ -568,7 +585,7 @@ function ordersCsv() {
     o.brands.forEach(function (g) {
       g.lines.forEach(function (l) {
         rows.push([o.id, when(o.placedAt), o.status, o.buyer.shop, o.buyer.city, o.buyer.gst,
-                   o.buyer.type, g.name, g.origin, l.title, l.category, l.size, l.unit,
+                   o.buyer.type, g.name, l.origin || g.origin, l.title, l.category, l.size, l.unit,
                    l.mrp, l.qty, l.total, o.subtotal, o.gst, o.freight, o.total]);
       });
     });
@@ -749,8 +766,10 @@ function viewProduct(slug) {
       '<div class="spec"><dl>' +
         '<dt>Category</dt><dd>' + esc(cat.name) + '</dd>' +
         (p.maker ? '<dt>Label</dt><dd>' + esc(p.maker) + '</dd>' : '') +
-
-        '<dt>Ships from</dt><dd>' + esc(b.shipsFrom) + '</dd>' +
+        /* Stated by the supplier on the listing itself, so it is per pack:
+           two bars of the same brand can be brought in from two countries. */
+        (p.origin ? '<dt>Country of origin</dt><dd>' + esc(p.origin) + '</dd>' : '') +
+        '<dt>Shipping</dt><dd>Export dispatch</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
         '<dt>Opening order</dt><dd>' + rupee(b.openingMin) + ' minimum</dd>' +
         '<dt>Returns</dt><dd>Free on your opening order</dd>' +
@@ -782,8 +801,9 @@ function viewBrand(id) {
       '<div class="brand-hero-veil"></div>' +
       '<div class="brand-hero-in">' +
         '<h1>' + esc(b.name) + '</h1>' +
-        '<div class="loc"><span>' + (b.origin ? 'Made in ' + esc(b.origin)
-            : esc(b.city) + ', ' + esc(b.state)) + '</span><span>·</span>' +
+        '<div class="loc"><span>' + (importedFrom(b)
+            ? 'Imported from ' + esc(importedFrom(b)) : 'Export-led collection') +
+          '</span><span>·</span>' +
         (b.since ? '<span>Since ' + b.since + '</span><span>·</span>' : '') +
         '<span>' + list.length + ' products</span></div>' +
         '<div class="badge-row">' + b.values.map(function (v) {
@@ -870,8 +890,9 @@ function viewCart() {
         'border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:4px;flex-wrap:wrap">' +
         '<a href="#/brand/' + esc(g.brand.id) + '"><h3 style="font-size:20px">' +
           esc(g.brand.name) + '</h3></a>' +
-        '<span style="font-size:12.5px;color:var(--ink-soft)">Ships from ' +
-          esc(g.brand.shipsFrom) + ' · ' + esc(g.brand.leadDays) + ' days</span>' +
+        '<span style="font-size:12.5px;color:var(--ink-soft)">' +
+          (importedFrom(g.brand) ? 'Imported from ' + esc(importedFrom(g.brand)) + ' · ' : '') +
+          esc(g.brand.leadDays) + ' days</span>' +
       '</div>' +
       g.lines.map(lineRow).join('') +
       '<div style="padding-top:12px">' +
@@ -941,7 +962,7 @@ function viewJoin() {
           '<input id="shop" required placeholder="e.g. Gopal Stores"></div>' +
         '<div class="field-row">' +
           '<div class="field"><label for="city">City</label>' +
-            '<input id="city" required placeholder="Bengaluru"></div>' +
+            '<input id="city" required placeholder="City"></div>' +
           '<div class="field"><label for="gst">GSTIN</label>' +
             '<input id="gst" placeholder="29ABCDE1234F1Z5"></div>' +
         '</div>' +
@@ -973,7 +994,7 @@ function viewSell() {
   return '<section class="hero"><div class="wrap hero-grid">' +
     '<div><span class="eyebrow">For makers</span>' +
       '<h1>Your craft deserves <em>better shelves</em>.</h1>' +
-      '<p class="hero-sub">Befach gets your products in front of thousands of vetted Indian retailers. ' +
+      '<p class="hero-sub">Befach gets your products in front of thousands of vetted retailers. ' +
       'We handle discovery, credit risk, invoicing and returns. You handle the making.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Apply to sell</a>' +
