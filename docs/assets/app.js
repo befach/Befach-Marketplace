@@ -11,20 +11,24 @@ var D = window.BEFACH;
 /* A brand carries `hidden` when it is parked rather than gone: the record and
    every one of its products stay in the payload, and only this filter keeps
    them off the shop front. Clear the flag in build/data.js and the brand, its
-   products, its category counts and its filter row all come back. */
+   products, its category counts and its filter row all come back.
+   A single product carries the same flag -- the shop front is an import book,
+   so a listing that states India as its country of origin is parked even when
+   the label around it is not. */
 function live(list) {
   return list.filter(function (b) { return !b.hidden; });
 }
 var BRANDS   = live(D.brands);
 var PIPELINE = live(D.pipeline);
 var SHOWN    = {};  BRANDS.forEach(function (b) { SHOWN[b.id] = 1; });
-var PRODUCTS = D.products.filter(function (p) { return SHOWN[p.brandId]; });
+function onSale(p) { return SHOWN[p.brandId] && !p.hidden; }
+var PRODUCTS = D.products.filter(onSale);
 /* Same recut for the value filters. The taxonomy was written for a pantry
    catalogue, so a couple of its keys have nothing behind them here, and an
    empty filter row is worse than a missing one. */
 var VALUES = D.values.filter(function (v) {
   return D.products.some(function (p) {
-    return SHOWN[p.brandId] && p.values.indexOf(v.key) > -1;
+    return onSale(p) && p.values.indexOf(v.key) > -1;
   });
 });
 
@@ -48,7 +52,18 @@ function load(k, d) { try { return JSON.parse(localStorage.getItem(k)) || d; } c
 function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
 var cart    = load('befach.cart', []);
+/* A saved line whose product has since been parked no longer resolves, and the
+   cart page can only render what it can find. Drop those on load so the header
+   count never runs ahead of the lines underneath it. */
+(function () {
+  var keep = cart.filter(function (l) { return find(l.id); });
+  if (keep.length !== cart.length) { cart = keep; save('befach.cart', cart); }
+}());
 var account = load('befach.account', null);   // null = pricing locked, Faire-style
+/* Placed orders, newest first. There is no backend behind this build, so an
+   order lives in the browser that placed it and the admin page reads the same
+   store -- see the note viewAdmin renders. */
+var orders  = load('befach.orders', []);
 
 /* ---------------- helpers ---------------- */
 var inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
@@ -62,6 +77,11 @@ function byId(id) { return document.getElementById(id); }
 function find(id) { return PRODUCTS.filter(function (p) { return p.slug === id || p.id === id; })[0]; }
 function q(sel, root) { return (root || document).querySelector(sel); }
 function qa(sel, root) { return [].slice.call((root || document).querySelectorAll(sel)); }
+
+/* Where a label's stock is brought in from. Blank on a label whose listings
+   come from too many countries to name one -- the product page carries the
+   per-listing origin either way. */
+function importedFrom(b) { return (b && (b.importedFrom || b.origin)) || ''; }
 
 /* The option a buyer picked, by title; falls back to the product default. */
 function defaultVariant(p) { return (p.variants && p.variants[0]) || p; }
@@ -152,8 +172,9 @@ function promptSignup() {
     '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="BefachUI.closeModal()">Not now</button>'
   );
 }
-function signIn(shop, city) {
-  account = { shop: shop || 'Demo Retail', city: city || 'Bengaluru' };
+function signIn(shop, city, gst, type) {
+  account = { shop: shop || 'Demo Retail', city: city || 'City',
+              gst: gst || '', type: type || '', since: Date.now() };
   save('befach.account', account);
   syncChrome();
   toast('Trade account active · you can place orders now');
@@ -273,10 +294,10 @@ function viewHome() {
   return '' +
   '<section class="hero"><div class="wrap hero-grid">' +
     '<div>' +
-      '<span class="eyebrow">Wholesale confectionery</span>' +
-      '<h1>The whole chocolate aisle, on <em>one invoice</em>.</h1>' +
-      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and the Indian ' +
-      'labels alongside them — ' + BRANDS.length + ' names a shop would otherwise open ' +
+      '<span class="eyebrow">Wholesale exported chocolates</span>' +
+      '<h1>The whole exported chocolate aisle, on <em>one invoice</em>.</h1>' +
+      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other export-led ' +
+      'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
       BRANDS.length + ' separate accounts to carry. Wholesale rates, one order, one delivery.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Open a retailer account</a>' +
@@ -306,8 +327,7 @@ function viewHome() {
   '<section class="sec"><div class="wrap">' +
     '<div class="sec-head"><div>' +
       '<h2>Shop by category</h2>' +
-      '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, every one ' +
-      'stocked and shipped from Navi Mumbai.</p>' +
+      '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, ready for your next order.</p>' +
     '</div><a class="link-more" href="#/browse">See all ' + PRODUCTS.length + ' products</a></div>' +
     '<div class="cat-grid">' + catTiles + '</div>' +
   '</div></section>' +
@@ -333,7 +353,8 @@ function viewHome() {
           '<h2>' + esc(b.name) + '</h2>' +
           '<p>' + esc(b.story || b.tagline) + '</p>' +
           '<div class="spot-meta">' +
-            '<div><span>Ships from</span><b>' + esc(b.shipsFrom) + '</b></div>' +
+            (importedFrom(b)
+              ? '<div><span>Imported from</span><b>' + esc(importedFrom(b)) + '</b></div>' : '') +
             '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
             '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
           '</div>' +
@@ -358,7 +379,7 @@ function viewHome() {
             '<div class="mono" style="background:' + esc(b.accent) + '">' +
               esc(b.short.charAt(0)) + '</div>' +
             '<h5>' + esc(b.name) + '</h5>' +
-            '<span>' + esc(b.shipsFrom) + '</span>' +
+            '<span>' + (importedFrom(b) ? esc(importedFrom(b)) : 'Export-led range') + '</span>' +
             '<span>' + n + ' products</span></a>';
         }).join('') + '</div>' +
       '</div></section>'
@@ -385,7 +406,7 @@ function viewHome() {
     '<div class="pipeline-grid">' + PIPELINE.map(function (b) {
       return '<div class="pbrand"><div class="mono" style="background:' + esc(b.accent) + '">' +
         esc(b.name.charAt(0)) + '</div><h5>' + esc(b.name) + '</h5>' +
-        '<span>' + esc(b.cat) + '</span><span>' + esc(b.city) + '</span></div>';
+        '<span>' + esc(b.cat) + '</span><span>Trade-ready</span></div>';
     }).join('') + '</div>' +
   '</div></section>' +
 
@@ -506,6 +527,191 @@ function priceBoxHtml(v, qty) {
       : '');
 }
 
+/* ================= orders ================= */
+/* An order is a snapshot, not a set of pointers. Prices, titles and pack sizes
+   are copied in at the moment it is placed, so a later catalogue rebuild — a
+   price change on the source storefront, a product pulled from the feed —
+   cannot rewrite what a shop was actually charged. That is also why the admin
+   page never calls find(). */
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+var DTF = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+function when(ts) { try { return DTF.format(new Date(ts)); } catch (e) { return ''; } }
+
+function nextOrderId() {
+  var d = new Date();
+  var day = String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + pad2(d.getDate());
+  var n = orders.filter(function (o) { return o.id.indexOf('BF-' + day) === 0; }).length + 1;
+  return 'BF-' + day + '-' + ('00' + n).slice(-3);
+}
+
+function snapshotOrder() {
+  var groups = BRANDS.map(function (b) {
+    var lines = cart.filter(function (l) { return (find(l.id) || {}).brandId === b.id; })
+      .map(function (l) {
+        var p = find(l.id), v = variantOf(p, l.size);
+        return { id: p.id, slug: p.slug, title: p.title, img: p.img,
+                 category: (CAT[p.category] || {}).name || p.category,
+                 origin: p.origin || '',
+                 size: v.title || '', unit: v.price, mrp: v.mrp || 0,
+                 qty: l.qty, total: v.price * l.qty };
+      });
+    var sub = lines.reduce(function (n, l) { return n + l.total; }, 0);
+    return { id: b.id, name: b.name, origin: b.origin || '', importedFrom: importedFrom(b),
+             leadDays: b.leadDays || '', openingMin: b.openingMin, subtotal: sub,
+             met: sub >= b.openingMin, freight: sub >= b.openingMin ? 0 : 850, lines: lines };
+  }).filter(function (g) { return g.lines.length; });
+
+  var sub     = groups.reduce(function (n, g) { return n + g.subtotal; }, 0);
+  var gst     = Math.round(sub * 0.05);
+  var freight = groups.reduce(function (n, g) { return n + g.freight; }, 0);
+  return {
+    id: nextOrderId(), placedAt: Date.now(), status: 'Placed',
+    buyer: {
+      shop: (account && account.shop) || '', city: (account && account.city) || '',
+      gst:  (account && account.gst)  || '', type: (account && account.type) || ''
+    },
+    brands: groups,
+    units: groups.reduce(function (n, g) {
+      return n + g.lines.reduce(function (m, l) { return m + l.qty; }, 0); }, 0),
+    subtotal: sub, gst: gst, freight: freight, total: sub + gst + freight
+  };
+}
+
+function ordersCsv() {
+  var rows = [['Order', 'Placed', 'Status', 'Shop', 'City', 'GSTIN', 'Shop type', 'Brand',
+               'Origin', 'Product', 'Category', 'Pack', 'Unit price', 'MRP', 'Qty',
+               'Line total', 'Order subtotal', 'GST', 'Freight', 'Order total']];
+  orders.forEach(function (o) {
+    o.brands.forEach(function (g) {
+      g.lines.forEach(function (l) {
+        rows.push([o.id, when(o.placedAt), o.status, o.buyer.shop, o.buyer.city, o.buyer.gst,
+                   o.buyer.type, g.name, l.origin || g.origin, l.title, l.category, l.size, l.unit,
+                   l.mrp, l.qty, l.total, o.subtotal, o.gst, o.freight, o.total]);
+      });
+    });
+  });
+  return rows.map(function (r) {
+    return r.map(function (c) {
+      var v = String(c == null ? '' : c);
+      return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+    }).join(',');
+  }).join('\n');
+}
+
+/* ================= VIEW: admin ================= */
+function viewAdmin() {
+  var revenue = orders.reduce(function (n, o) { return n + o.total; }, 0);
+  var units   = orders.reduce(function (n, o) { return n + o.units; }, 0);
+  var avg     = orders.length ? Math.round(revenue / orders.length) : 0;
+
+  /* which labels are actually selling, biggest first */
+  var byBrand = {};
+  orders.forEach(function (o) {
+    o.brands.forEach(function (g) {
+      var e = byBrand[g.name] = byBrand[g.name] || { value: 0, units: 0, orders: 0 };
+      e.value  += g.subtotal;
+      e.orders += 1;
+      g.lines.forEach(function (l) { e.units += l.qty; });
+    });
+  });
+  var brandRows = Object.keys(byBrand)
+    .sort(function (a, b) { return byBrand[b].value - byBrand[a].value; })
+    .map(function (k) {
+      var e = byBrand[k];
+      return '<tr><td>' + esc(k) + '</td><td class="num">' + e.orders + '</td>' +
+             '<td class="num">' + e.units + '</td>' +
+             '<td class="num">' + rupee(e.value) + '</td></tr>';
+    }).join('');
+
+  function stat(label, value, sub) {
+    return '<div class="adm-stat"><span>' + esc(label) + '</span><b>' + value + '</b>' +
+           (sub ? '<em>' + esc(sub) + '</em>' : '') + '</div>';
+  }
+
+  var cards = orders.map(function (o) {
+    var brands = o.brands.map(function (g) {
+      var lines = g.lines.map(function (l) {
+        return '<tr>' +
+          '<td class="thumb"><img src="' + esc(l.img) + '" alt="" loading="lazy"></td>' +
+          '<td><b>' + esc(l.title) + '</b>' +
+            '<span class="sub">' + esc(l.category) +
+            (l.size ? ' · ' + esc(l.size) : '') + '</span></td>' +
+          '<td class="num">' + rupee(l.unit) +
+            (l.mrp ? '<span class="sub">MRP ' + rupee(l.mrp) + '</span>' : '') + '</td>' +
+          '<td class="num">' + l.qty + '</td>' +
+          '<td class="num"><b>' + rupee(l.total) + '</b></td></tr>';
+      }).join('');
+      return '<div class="adm-brand">' +
+        '<div class="adm-brand-head"><h4>' + esc(g.name) + '</h4>' +
+          '<span>' + (g.origin ? esc(g.origin) + ' · ' : '') +
+          'lead ' + esc(g.leadDays) + ' days · ' + rupee(g.subtotal) +
+          (g.met ? '' : ' · under the ' + rupee(g.openingMin) + ' minimum') +
+          '</span></div>' +
+        '<table class="adm-lines"><tbody>' + lines + '</tbody></table>' +
+      '</div>';
+    }).join('');
+
+    return '<article class="adm-order">' +
+      '<header class="adm-order-head">' +
+        '<div><h3>' + esc(o.id) + '</h3>' +
+          '<span class="sub">' + esc(when(o.placedAt)) + '</span></div>' +
+        '<span class="adm-status">' + esc(o.status) + '</span>' +
+      '</header>' +
+      /* Each pair is wrapped: dt and dd are separate grid items otherwise,
+         so auto-fit columns tear labels away from their values. */
+      '<div class="adm-buyer"><dl>' +
+        [['Shop', o.buyer.shop], ['City', o.buyer.city], ['GSTIN', o.buyer.gst],
+         ['Shop type', o.buyer.type], ['Brands', o.brands.length], ['Units', o.units]]
+          .map(function (f) {
+            return '<div><dt>' + esc(f[0]) + '</dt><dd>' +
+                   esc(f[1] === 0 || f[1] ? f[1] : '—') + '</dd></div>';
+          }).join('') +
+      '</dl></div>' +
+      brands +
+      '<div class="adm-totals">' +
+        '<div class="sum-line"><span>Subtotal</span><span>' + rupee(o.subtotal) + '</span></div>' +
+        '<div class="sum-line"><span>GST (5%)</span><span>' + rupee(o.gst) + '</span></div>' +
+        '<div class="sum-line"><span>Freight</span><span>' +
+          (o.freight ? rupee(o.freight) : 'Free') + '</span></div>' +
+        '<div class="sum-line total"><span>Order total</span><span>' +
+          rupee(o.total) + '</span></div>' +
+      '</div>' +
+    '</article>';
+  }).join('');
+
+  return '<div class="wrap adm">' +
+    '<div class="browse-head"><div><h1>Orders</h1>' +
+      '<p class="cnt">' + orders.length + ' order' + (orders.length === 1 ? '' : 's') +
+      ' placed on this device</p></div>' +
+      (orders.length
+        ? '<div style="display:flex;gap:10px">' +
+            '<button class="btn btn-ghost" id="admCsv">Export CSV</button>' +
+            '<button class="btn btn-plain" id="admClear">Clear</button>' +
+          '</div>'
+        : '') +
+    '</div>' +
+    '<p class="adm-note">This build has no server. An order is written to the browser that ' +
+      'placed it, and this page reads that same store — so orders placed on another ' +
+      'device, or in a private window, will not appear here.</p>' +
+    (orders.length
+      ? '<div class="adm-stats">' +
+          stat('Orders', orders.length) +
+          stat('Units', units) +
+          stat('Gross value', rupee(revenue), 'incl. GST and freight') +
+          stat('Average order', rupee(avg)) +
+        '</div>' +
+        '<section class="adm-panel"><h3>By brand</h3>' +
+          '<table class="adm-table"><thead><tr><th>Brand</th><th class="num">Orders</th>' +
+          '<th class="num">Units</th><th class="num">Value</th></tr></thead>' +
+          '<tbody>' + brandRows + '</tbody></table></section>' +
+        cards
+      : '<div class="empty"><h3>No orders yet</h3>' +
+        '<p>Place one from the cart and every line of it lands here.</p>' +
+        '<a href="#/browse" class="btn btn-ink btn-lg" style="margin-top:20px">Browse products</a>' +
+        '</div>') +
+  '</div>';
+}
+
 /* ================= VIEW: product ================= */
 function viewProduct(slug) {
   var p = find(slug);
@@ -560,8 +766,10 @@ function viewProduct(slug) {
       '<div class="spec"><dl>' +
         '<dt>Category</dt><dd>' + esc(cat.name) + '</dd>' +
         (p.maker ? '<dt>Label</dt><dd>' + esc(p.maker) + '</dd>' : '') +
-
-        '<dt>Ships from</dt><dd>' + esc(b.shipsFrom) + '</dd>' +
+        /* Stated by the supplier on the listing itself, so it is per pack:
+           two bars of the same brand can be brought in from two countries. */
+        (p.origin ? '<dt>Country of origin</dt><dd>' + esc(p.origin) + '</dd>' : '') +
+        '<dt>Shipping</dt><dd>Export dispatch</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
         '<dt>Opening order</dt><dd>' + rupee(b.openingMin) + ' minimum</dd>' +
         '<dt>Returns</dt><dd>Free on your opening order</dd>' +
@@ -593,8 +801,9 @@ function viewBrand(id) {
       '<div class="brand-hero-veil"></div>' +
       '<div class="brand-hero-in">' +
         '<h1>' + esc(b.name) + '</h1>' +
-        '<div class="loc"><span>' + (b.origin ? 'Made in ' + esc(b.origin)
-            : esc(b.city) + ', ' + esc(b.state)) + '</span><span>·</span>' +
+        '<div class="loc"><span>' + (importedFrom(b)
+            ? 'Imported from ' + esc(importedFrom(b)) : 'Export-led collection') +
+          '</span><span>·</span>' +
         (b.since ? '<span>Since ' + b.since + '</span><span>·</span>' : '') +
         '<span>' + list.length + ' products</span></div>' +
         '<div class="badge-row">' + b.values.map(function (v) {
@@ -681,8 +890,9 @@ function viewCart() {
         'border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:4px;flex-wrap:wrap">' +
         '<a href="#/brand/' + esc(g.brand.id) + '"><h3 style="font-size:20px">' +
           esc(g.brand.name) + '</h3></a>' +
-        '<span style="font-size:12.5px;color:var(--ink-soft)">Ships from ' +
-          esc(g.brand.shipsFrom) + ' · ' + esc(g.brand.leadDays) + ' days</span>' +
+        '<span style="font-size:12.5px;color:var(--ink-soft)">' +
+          (importedFrom(g.brand) ? 'Imported from ' + esc(importedFrom(g.brand)) + ' · ' : '') +
+          esc(g.brand.leadDays) + ' days</span>' +
       '</div>' +
       g.lines.map(lineRow).join('') +
       '<div style="padding-top:12px">' +
@@ -752,7 +962,7 @@ function viewJoin() {
           '<input id="shop" required placeholder="e.g. Gopal Stores"></div>' +
         '<div class="field-row">' +
           '<div class="field"><label for="city">City</label>' +
-            '<input id="city" required placeholder="Bengaluru"></div>' +
+            '<input id="city" required placeholder="City"></div>' +
           '<div class="field"><label for="gst">GSTIN</label>' +
             '<input id="gst" placeholder="29ABCDE1234F1Z5"></div>' +
         '</div>' +
@@ -784,7 +994,7 @@ function viewSell() {
   return '<section class="hero"><div class="wrap hero-grid">' +
     '<div><span class="eyebrow">For makers</span>' +
       '<h1>Your craft deserves <em>better shelves</em>.</h1>' +
-      '<p class="hero-sub">Befach gets your products in front of thousands of vetted Indian retailers. ' +
+      '<p class="hero-sub">Befach gets your products in front of thousands of vetted retailers. ' +
       'We handle discovery, credit risk, invoicing and returns. You handle the making.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Apply to sell</a>' +
@@ -863,6 +1073,7 @@ function render() {
   else if (head === 'cart')    html = viewCart();
   else if (head === 'join')    html = viewJoin();
   else if (head === 'sell')    html = viewSell();
+  else if (head === 'admin')   html = viewAdmin();
   else                         html = notFound();
 
   app.innerHTML = '<div class="fade">' + html + '</div>';
@@ -988,6 +1199,15 @@ function bindView(r) {
   var place = byId('placeBtn');
   if (place) place.addEventListener('click', function () {
     var total = cartTotal();
+    /* Write the order before the cart is emptied, and before the modal, so a
+       closed tab at the wrong moment cannot lose it. */
+    var order = snapshotOrder();
+    orders.unshift(order);
+    save('befach.orders', orders);
+    /* Empty the cart here, not on the Done button. The modal offers a second
+       way out -- View it in Orders -- and leaving the clear on one of the two
+       buttons meant taking that route left a placed order sitting in a full
+       cart, one click away from being ordered twice. */
     var names = BRANDS.filter(function (b) {
       return cart.some(function (l) { return (find(l.id) || {}).brandId === b.id; });
     }).map(function (b) { return b.short; });
@@ -995,15 +1215,34 @@ function bindView(r) {
       ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] + ' have'
       : names[0] + ' has';
     openModal(
-      '<h3>Order placed</h3>' +
+      '<h3>Order ' + esc(order.id) + ' placed</h3>' +
       '<p>' + esc(who) + ' been notified and will dispatch within their stated lead times. ' +
       'Order total <b>' + rupee(total) + '</b> plus GST.</p>' +
+      '<a href="#/admin" class="btn btn-ghost btn-block" style="margin-bottom:10px" ' +
+        'onclick="BefachUI.closeModal()">View it in Orders</a>' +
       '<button class="btn btn-ink btn-block btn-lg" id="okBtn">Done</button>'
     );
+    cart = []; save('befach.cart', cart); syncChrome();
     byId('okBtn').addEventListener('click', function () {
-      cart = []; save('befach.cart', cart); closeModal();
-      syncChrome(); location.hash = '#/'; render();
+      closeModal(); location.hash = '#/'; render();
     });
+  });
+
+  /* admin controls */
+  var csvBtn = byId('admCsv');
+  if (csvBtn) csvBtn.addEventListener('click', function () {
+    var blob = new Blob([ordersCsv()], { type: 'text/csv;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'befach-orders.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+  });
+  var clrBtn = byId('admClear');
+  if (clrBtn) clrBtn.addEventListener('click', function () {
+    if (!confirm('Delete all ' + orders.length + ' orders from this browser?')) return;
+    orders = []; save('befach.orders', orders); render();
+    toast('Orders cleared');
   });
 
   /* show more */
@@ -1020,7 +1259,9 @@ function bindView(r) {
   var form = byId('joinForm');
   if (form) form.addEventListener('submit', function (e) {
     e.preventDefault();
-    signIn(byId('shop').value.trim(), byId('city').value.trim());
+    signIn(byId('shop').value.trim(), byId('city').value.trim(),
+           (byId('gst') || {}).value ? byId('gst').value.trim() : '',
+           (byId('type') || {}).value || '');
     location.hash = '#/browse';
   });
   var out = byId('signOutBtn');

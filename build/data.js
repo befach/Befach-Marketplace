@@ -250,28 +250,95 @@ cat.products.filter(p => p.brandId === 'cococart').forEach(p => {
   (groups[label] = groups[label] || []).push(p);
 });
 
+/* ---- the shop front is an import book ----
+   Everything on it is brought in, so a listing whose stated country of origin
+   is India is parked, and a label whose only stated origin is India is parked
+   whole -- its unlabelled listings come from the same Indian maker, so leaving
+   them behind would put Indian stock on an imports front under a brand page
+   with nothing to say. As everywhere else here, parking is a flag: clear
+   `hidden` on a record and it comes straight back. */
+const isIndia = s => /^india$/i.test(String(s || '').trim());
+/* A hamper carries no origin of its own: the supplier prints the country
+   against each bar inside it instead. One Indian bar in the box makes the box
+   Indian stock, so the whole listing is parked. */
+const holdsIndian = p =>
+  /country of origin\s*[:\u2013\u2014-]*\s*india\b/i.test(String(p.desc || ''));
+
+/* A few labels state no country on any listing of their own. The supplier does
+   print one against each bar it packs into a hamper -- "1 X The Whisketiers
+   Almond Dark Chocolate 100g (Country of Origin - India)" -- so those lines are
+   the only evidence there is for them. They are read only where a label's own
+   listings are silent: the same hamper copy calls Loacker Indian in one line
+   and Italian in the next, and a label's own listings are the better witness
+   wherever they exist. */
+const HAMPER_LINE =
+  /[0-9]+\s*[xX]\s*([^()]{3,90}?)\s*\(\s*Country of Origin\s*[:\u2013\u2014-]*\s*([A-Za-z][A-Za-z .']{2,26}?)\s*\)/g;
+const hamperLines = [];
+cat.products.forEach(p => {
+  let m;
+  HAMPER_LINE.lastIndex = 0;
+  while ((m = HAMPER_LINE.exec(String(p.desc || '')))) {
+    hamperLines.push({ item: m[1].trim().toLowerCase(), origin: m[2].trim() });
+  }
+});
+const hamperSays = name => mode(hamperLines
+  .filter(l => l.item.indexOf(name.toLowerCase()) > -1)
+  .map(l => l.origin));
+
+/* A label carries a country only when most of its listings state that one
+   country. Half the Godiva stock is made in Saudi Arabia and half in Belgium,
+   the hampers are packed from nine origins at once, so a mode over those is a
+   flag picked by a couple of listings. Those labels get no country line, and
+   the per-listing origin on the product page carries the detail instead. */
+const majority = xs => {
+  const top = mode(xs);
+  return top && xs.filter(x => x === top).length * 2 > xs.length ? top : '';
+};
+
+const labels = Object.keys(groups).map(name => {
+  const mine   = groups[name];
+  const stated = mine.map(p => p.origin).filter(Boolean);
+  /* Silent on its own listings means unknown, not Indian -- unless the hamper
+     copy names the label as Indian stock. */
+  const indian = stated.length
+    ? stated.every(isIndia)
+    : isIndia(hamperSays(name));
+  const parked = p => indian || isIndia(p.origin) || holdsIndian(p);
+  return { name, mine, indian, shown: mine.filter(p => !parked(p)).length,
+           origin: majority(stated.filter(o => !isIndia(o))), parked };
+});
+
 /* Biggest range first, so the two home-page spotlights land on labels with
-   something to show rather than on whichever one sorts first. */
-const labelBrands = Object.keys(groups)
-  .sort((a, b) => groups[b].length - groups[a].length || a.localeCompare(b))
-  .map((name, i) => {
-    const mine   = groups[name];
+   something to show rather than on whichever one sorts first. Counted on what
+   survives the import cut, not on what the feed shipped. */
+const labelBrands = labels
+  .sort((a, b) => b.shown - a.shown || a.name.localeCompare(b.name))
+  .map((g, i) => {
+    const name   = g.name;
     const id     = idOf(name);
-    const origin = mode(mine.map(p => p.origin).filter(Boolean));
-    const topCat = CAT_NAME[mode(mine.map(p => p.category))] || 'Chocolate';
+    const origin = g.origin;
+    const topCat = CAT_NAME[mode(g.mine.filter(p => !g.parked(p)).map(p => p.category))]
+                || CAT_NAME[mode(g.mine.map(p => p.category))] || 'Chocolate';
     /* The label is the brand now, so the per-product maker line would just
        repeat the brand link above it. */
-    mine.forEach(p => { p.brandId = id; p.maker = ''; });
-    return {
+    g.mine.forEach(p => {
+      p.brandId = id; p.maker = '';
+      if (g.parked(p)) p.hidden = true;
+    });
+    const brand = {
       id, name, short: name, origin,
       tagline: origin ? topCat + ' from ' + origin : topCat,
       story: '',                         // no invented history for a real company
       values: [],                        // and no claims it has not made
-      openingMin: 5000, leadDays: '3-5', shipsFrom: 'Navi Mumbai, MH',
-      prep: (origin === 'India' ? 'Made in India' : 'Imported stock') +
-            ' · FSSAI licensed · Temperature-controlled storage',
+      openingMin: 5000, leadDays: '3-5',
+      /* Where the stock is brought in from. The warehouse it leaves is the
+         distributor's own address, which the shop front does not carry. */
+      importedFrom: origin,
+      prep: 'Imported stock · FSSAI licensed · Temperature-controlled storage',
       accent: ACCENTS[i % ACCENTS.length],
     };
+    if (g.indian) brand.hidden = true;
+    return brand;
   });
 
 /* The distributor writes its own name into the hamper copy it publishes. */
@@ -301,6 +368,16 @@ let idx = fs.readFileSync(idxPath, 'utf8');
   const re = new RegExp('(assets/' + f.replace('.', '\\.') + ')(\\?v=[a-f0-9]+)?', 'g');
   idx = idx.replace(re, '$1?v=' + stamp(f));
 });
+
+/* The search box quotes the size of the catalogue. app.js rewrites it from the
+   payload on load, but it ships in the markup too, so stamp it here rather
+   than leave the first paint quoting a count from before the import cut. */
+const onFront = allBrands.filter(b => !b.hidden);
+idx = idx.replace(/(placeholder="Search )\d+( products from )\d+( brands)/,
+  '$1' + cat.products.filter(p => !p.hidden &&
+      onFront.some(b => b.id === p.brandId)).length +
+  '$2' + onFront.length + '$3');
+
 fs.writeFileSync(idxPath, idx);
 
 console.log('wrote docs/assets/data.js');
@@ -310,16 +387,23 @@ console.log('  products  ', cat.products.length);
 console.log('  categories', cat.categories.length);
 const shown  = allBrands.filter(b => !b.hidden);
 const hidden = allBrands.filter(b => b.hidden);
-const count  = b => cat.products.filter(p => p.brandId === b.id).length;
+const count  = b => cat.products.filter(p => p.brandId === b.id && !p.hidden).length;
+const all    = b => cat.products.filter(p => p.brandId === b.id).length;
 console.log('  brands    ', shown.length, 'shown +', hidden.length, 'hidden +',
   pipeline.length, 'onboarding (hidden)');
 console.log('  on the shop front', shown.reduce((n, b) => n + count(b), 0), 'products:');
 shown.forEach(b => console.log('    ', b.short.padEnd(22), String(count(b)).padStart(3),
   b.origin ? '· ' + b.origin : ''));
+console.log('  parked as Indian stock:',
+  cat.products.filter(p => p.hidden).length, 'listings ·',
+  labelBrands.filter(b => b.hidden).map(b => b.short + ' ' + all(b)).join(', '));
 console.log('  hidden, still in the payload:',
-  hidden.map(b => b.short + ' ' + count(b)).join(', '));
+  hidden.filter(b => !labelBrands.some(l => l.id === b.id))
+    .map(b => b.short + ' ' + all(b)).join(', '));
 const unknown = cat.products.filter(p => !allBrands.some(b => b.id === p.brandId));
 if (unknown.length) console.log('  !! products with no brand record:', unknown.length);
+const stillIndian = cat.products.filter(p => !p.hidden && /^india$/i.test(String(p.origin || '')));
+if (stillIndian.length) console.log('  !! Indian-origin listings on the front:', stillIndian.length);
 const orphan = shown.filter(b => !count(b));
 if (orphan.length) console.log('  !! shown brands with no products:', orphan.map(b => b.id).join(', '));
 const badVal = new Set();
