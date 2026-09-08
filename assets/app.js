@@ -245,7 +245,10 @@ function promptSignup() {
 /* phone is appended rather than slotted in beside city, so an older caller
    passing four arguments still signs in -- it just has no number. */
 function signIn(shop, city, gst, type, phone) {
-  account = { shop: shop || 'Demo Retail', city: city || 'City',
+  /* City is optional now, so an empty one stays empty. It used to fall back to
+     the word "City", which was a harmless placeholder while the field was
+     required and would otherwise start appearing in the sheet as an address. */
+  account = { shop: shop || 'Demo Retail', city: city || '',
               phone: phone || '', gst: gst || '', type: type || '',
               since: Date.now() };
   save('befach.account', account);
@@ -1086,25 +1089,31 @@ function viewJoin() {
       '<p>Free, takes two minutes. Once you are verified you will see wholesale rates ' +
       'across every brand on Befach.</p>' +
       '<form id="joinForm">' +
+        /* Two fields are asked for and the rest are offered: a name to call the
+           shop by and a number to call it on are all an account needs to be
+           opened. Everything else can be filled in later, and a form that
+           insists on a GSTIN before it will take an enquiry loses the enquiry. */
         '<div class="field"><label for="shop">Shop name</label>' +
           '<input id="shop" required placeholder="e.g. Gopal Stores"></div>' +
         '<div class="field-row">' +
-          '<div class="field"><label for="city">City</label>' +
-            '<input id="city" required placeholder="City"></div>' +
-          /* Required: an order is followed up by phone, and a lead without a
-             number is a row nobody can act on. */
           '<div class="field"><label for="phone">Phone</label>' +
             '<input id="phone" type="tel" inputmode="tel" required ' +
             'autocomplete="tel" placeholder="Mobile number"></div>' +
+          '<div class="field"><label for="city">City <span class="hint">optional</span></label>' +
+            '<input id="city" placeholder="City"></div>' +
         '</div>' +
         '<div class="field-row">' +
-          '<div class="field"><label for="gst">GSTIN</label>' +
+          '<div class="field"><label for="gst">GSTIN <span class="hint">optional</span></label>' +
             '<input id="gst" placeholder="29ABCDE1234F1Z5"></div>' +
           '<div class="field"><label for="type">Shop type</label>' +
             '<select id="type"><option>Grocery / kirana</option><option>Organic &amp; health store</option>' +
             '<option>Cafe / restaurant</option><option>Gift &amp; concept store</option>' +
             '<option>Online retailer</option></select></div>' +
         '</div>' +
+        '<div class="field"><label for="note">Anything you want to tell us ' +
+          '<span class="hint">optional</span></label>' +
+          '<textarea id="note" rows="3" placeholder="Brands you are after, ' +
+          'volumes, delivery notes — anything at all."></textarea></div>' +
         '<button class="btn btn-ink btn-lg btn-block" type="submit">Create account</button>' +
       '</form>' +
       '<ul class="perks">' +
@@ -1416,8 +1425,12 @@ function bindView(r) {
            (byId('gst') || {}).value ? byId('gst').value.trim() : '',
            (byId('type') || {}).value || '',
            (byId('phone') || {}).value ? byId('phone').value.trim() : '');
+    /* The note is a one-off message, not account data, so it is read straight
+       off the form and sent rather than kept in localStorage. */
     relay('lead', { shop: account.shop, phone: account.phone, city: account.city,
-                    gst: account.gst, type: account.type, page: location.href });
+                    gst: account.gst, type: account.type,
+                    message: (byId('note') || {}).value ? byId('note').value.trim() : '',
+                    page: location.href });
     location.hash = '#/browse';
   });
   var out = byId('signOutBtn');
