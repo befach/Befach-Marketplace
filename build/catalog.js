@@ -532,9 +532,16 @@ const products = shopifySource('tb-raw.json', 'two-brothers', 'tb', {
        records themselves, so nothing is blanked here -- the house-packed
        lines need a label too. */
     maker: p => (p.vendor || '').trim(),
-    /* Country of origin, in the store's own words. It is stated on 563 of
+    /* Country of origin, in the store's own words. It is stated on 522 of
        the 566 listings, which is why no hand-written origin table exists. */
-    after: (out, p) => { out.origin = originOf(p.body_html); return out; },
+    after: (out, p) => {
+      out.origin = originOf(p.body_html);
+      /* The store's own publish date, and the only recency signal in the feed:
+         these listings carry no badge, rating or review count, so without it
+         "newest" has nothing to sort on. */
+      out.published = Date.parse(p.published_at || p.created_at) || 0;
+      return out;
+    },
     /* Weight is the only thing separating some listings ("Ballotin Box 250g"
        from "Ballotin Box 500g"), so keep the title whole -- no splitting on
        the comma, no stripping the trailing grammage. Only the maker's name

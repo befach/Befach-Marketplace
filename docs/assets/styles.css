@@ -89,6 +89,13 @@ p{margin:0}
 .btn-block{width:100%}
 .btn[disabled]{opacity:.45;pointer-events:none}
 
+/* Any glyph sitting inside a button: the button is already a flex row with a
+   gap, so this only has to size it and take the button's own colour. */
+.btn svg{width:17px;height:17px;flex:0 0 auto;fill:none;stroke:currentColor;
+  stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.btn-sm svg{width:15px;height:15px}
+.btn-lg svg{width:19px;height:19px}
+
 .cart-btn{position:relative}
 .cart-dot{position:absolute;top:-3px;right:-3px;min-width:19px;height:19px;padding:0 5px;
   border-radius:999px;background:var(--sindoor);color:#fff;font-size:11px;font-weight:700;

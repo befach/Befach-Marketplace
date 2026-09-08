@@ -341,6 +341,26 @@ const labelBrands = labels
     return brand;
   });
 
+/* ---- the trade discount ----
+   The scraped figure is the storefront's own listed price, which is what a
+   walk-in shopper pays. A retailer buying wholesale pays 30% under it, so that
+   is the price the site quotes, and the listed price is kept as the MRP the
+   card strikes through -- a smaller number on its own reads as a cheaper
+   product rather than as a trade rate.
+
+   Where the feed already carried an MRP above the listed price, that higher
+   figure stays and the pack simply shows more than 30% off it. Rounding those
+   down to a flat 30% would understate what the shop is actually getting. */
+const TRADE_OFF = 0.30;
+const reprice = v => {
+  if (!v || !v.price) return;
+  const list = v.mrp || v.price;
+  v.mrp = list;
+  v.price = Math.round(v.price * (1 - TRADE_OFF));
+  v.discount = Math.round((1 - v.price / list) * 100);
+};
+cat.products.forEach(p => { reprice(p); (p.variants || []).forEach(reprice); });
+
 /* The distributor writes its own name into the hamper copy it publishes. */
 cat.products.forEach(p => {
   p.desc = p.desc.replace(/coco\s*cart(?:'|\u2019)s\b/gi, 'our')
