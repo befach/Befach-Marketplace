@@ -242,9 +242,12 @@ function promptSignup() {
     '<button class="btn btn-plain btn-block" style="margin-top:10px" onclick="BefachUI.closeModal()">Not now</button>'
   );
 }
-function signIn(shop, city, gst, type) {
+/* phone is appended rather than slotted in beside city, so an older caller
+   passing four arguments still signs in -- it just has no number. */
+function signIn(shop, city, gst, type, phone) {
   account = { shop: shop || 'Demo Retail', city: city || 'City',
-              gst: gst || '', type: type || '', since: Date.now() };
+              phone: phone || '', gst: gst || '', type: type || '',
+              since: Date.now() };
   save('befach.account', account);
   syncChrome();
   toast('Trade account active · you can place orders now');
@@ -674,8 +677,9 @@ function snapshotOrder() {
   return {
     id: nextOrderId(), placedAt: Date.now(), status: 'Placed',
     buyer: {
-      shop: (account && account.shop) || '', city: (account && account.city) || '',
-      gst:  (account && account.gst)  || '', type: (account && account.type) || ''
+      shop:  (account && account.shop)  || '', city: (account && account.city) || '',
+      phone: (account && account.phone) || '',
+      gst:   (account && account.gst)   || '', type: (account && account.type) || ''
     },
     brands: groups,
     orderMin: ORDER_MIN, met: sub >= ORDER_MIN,
@@ -686,13 +690,14 @@ function snapshotOrder() {
 }
 
 function ordersCsv() {
-  var rows = [['Order', 'Placed', 'Status', 'Shop', 'City', 'GSTIN', 'Shop type', 'Brand',
+  var rows = [['Order', 'Placed', 'Status', 'Shop', 'Phone', 'City', 'GSTIN', 'Shop type', 'Brand',
                'Origin', 'Product', 'Category', 'Pack', 'Unit price', 'MRP', 'Qty',
                'Line total', 'Order subtotal', 'GST', 'Freight', 'Order total']];
   orders.forEach(function (o) {
     o.brands.forEach(function (g) {
       g.lines.forEach(function (l) {
-        rows.push([o.id, when(o.placedAt), o.status, o.buyer.shop, o.buyer.city, o.buyer.gst,
+        rows.push([o.id, when(o.placedAt), o.status, o.buyer.shop, o.buyer.phone || '',
+                   o.buyer.city, o.buyer.gst,
                    o.buyer.type, g.name, l.origin || g.origin, l.title, l.category, l.size, l.unit,
                    l.mrp, l.qty, l.total, o.subtotal, o.gst, o.freight, o.total]);
       });
@@ -767,8 +772,9 @@ function viewAdmin() {
       /* Each pair is wrapped: dt and dd are separate grid items otherwise,
          so auto-fit columns tear labels away from their values. */
       '<div class="adm-buyer"><dl>' +
-        [['Shop', o.buyer.shop], ['City', o.buyer.city], ['GSTIN', o.buyer.gst],
-         ['Shop type', o.buyer.type], ['Brands', o.brands.length], ['Units', o.units]]
+        [['Shop', o.buyer.shop], ['Phone', o.buyer.phone], ['City', o.buyer.city],
+         ['GSTIN', o.buyer.gst], ['Shop type', o.buyer.type],
+         ['Brands', o.brands.length], ['Units', o.units]]
           .map(function (f) {
             return '<div><dt>' + esc(f[0]) + '</dt><dd>' +
                    esc(f[1] === 0 || f[1] ? f[1] : '—') + '</dd></div>';
@@ -1085,13 +1091,20 @@ function viewJoin() {
         '<div class="field-row">' +
           '<div class="field"><label for="city">City</label>' +
             '<input id="city" required placeholder="City"></div>' +
+          /* Required: an order is followed up by phone, and a lead without a
+             number is a row nobody can act on. */
+          '<div class="field"><label for="phone">Phone</label>' +
+            '<input id="phone" type="tel" inputmode="tel" required ' +
+            'autocomplete="tel" placeholder="Mobile number"></div>' +
+        '</div>' +
+        '<div class="field-row">' +
           '<div class="field"><label for="gst">GSTIN</label>' +
             '<input id="gst" placeholder="29ABCDE1234F1Z5"></div>' +
+          '<div class="field"><label for="type">Shop type</label>' +
+            '<select id="type"><option>Grocery / kirana</option><option>Organic &amp; health store</option>' +
+            '<option>Cafe / restaurant</option><option>Gift &amp; concept store</option>' +
+            '<option>Online retailer</option></select></div>' +
         '</div>' +
-        '<div class="field"><label for="type">Shop type</label>' +
-          '<select id="type"><option>Grocery / kirana</option><option>Organic &amp; health store</option>' +
-          '<option>Cafe / restaurant</option><option>Gift &amp; concept store</option>' +
-          '<option>Online retailer</option></select></div>' +
         '<button class="btn btn-ink btn-lg btn-block" type="submit">Create account</button>' +
       '</form>' +
       '<ul class="perks">' +
@@ -1099,8 +1112,11 @@ function viewJoin() {
         perk('Free returns on your first order from any brand.') +
         perk('One invoice and one delivery across every label.') +
       '</ul>' +
+      /* It did once. The relay sends what is typed here to Befach's order
+         sheet, so the note has to say so. */
       '<p style="font-size:12px;color:var(--ink-mute);margin-top:20px">' +
-      'Prototype: no data leaves your browser.</p>' +
+      'Prototype build. What you enter here reaches the Befach order sheet ' +
+      'so a buyer can be called back; nothing else is shared.</p>' +
     '</div>' +
     '<div class="split-art">' + shots.map(function (p) {
       return '<img src="' + esc(p.img) + '" alt="">'; }).join('') + '</div>' +
@@ -1398,9 +1414,10 @@ function bindView(r) {
     e.preventDefault();
     signIn(byId('shop').value.trim(), byId('city').value.trim(),
            (byId('gst') || {}).value ? byId('gst').value.trim() : '',
-           (byId('type') || {}).value || '');
-    relay('lead', { shop: account.shop, city: account.city, gst: account.gst,
-                    type: account.type, page: location.href });
+           (byId('type') || {}).value || '',
+           (byId('phone') || {}).value ? byId('phone').value.trim() : '');
+    relay('lead', { shop: account.shop, phone: account.phone, city: account.city,
+                    gst: account.gst, type: account.type, page: location.href });
     location.hash = '#/browse';
   });
   var out = byId('signOutBtn');
