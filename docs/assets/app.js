@@ -111,6 +111,12 @@ function flushRelay() {
 }
 
 /* ---------------- helpers ---------------- */
+/* One minimum for the whole order, not one per brand. A shop can mix any
+   labels to clear it, which is the point of buying the aisle off one invoice,
+   and freight is free once the order as a whole is over the line. */
+var ORDER_MIN = 5000;
+var FREIGHT   = 850;
+
 var inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 function rupee(n) { return '₹' + inr.format(Math.round(n || 0)); }
 function esc(s) {
@@ -181,8 +187,26 @@ function cartTotal() {
     return n + (p ? variantOf(p, l.size).price * l.qty : 0);
   }, 0);
 }
+/* One cart glyph for every control that leads to the order, so the header
+   button, the grid and the product page all read as the same thing. The wheels
+   carry their own fill: the button rule paints strokes, not solids. */
+function cartIcon() {
+  return '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+    '<path d="M2.5 3.5h2.2l2.3 10.2a2 2 0 0 0 1.95 1.55h7.4a2 2 0 0 0 1.95-1.5L20.2 7.2H5.6"/>' +
+    '<circle cx="10" cy="19.6" r="1.35" fill="currentColor" stroke="none"/>' +
+    '<circle cx="16.8" cy="19.6" r="1.35" fill="currentColor" stroke="none"/></svg>';
+}
+
+/* Is this exact pack already on the order? Keyed the same way the cart is, so
+   two sizes of one product are two answers. */
+function inCart(id, size) {
+  var key = id + '|' + (size || '');
+  return cart.some(function (l) { return l.key === key; });
+}
+/* Returns whether the line was added, so a caller can swap its button for the
+   one pointing at the cart. */
 function addToCart(id, size, qty) {
-  if (!account) { promptSignup(); return; }
+  if (!account) { promptSignup(); return false; }
   var key = id + '|' + (size || '');
   var line = cart.filter(function (l) { return l.key === key; })[0];
   if (line) line.qty += qty; else cart.push({ key: key, id: id, size: size || '', qty: qty });
@@ -190,6 +214,7 @@ function addToCart(id, size, qty) {
   syncChrome();
   var p = find(id);
   toast(p.title.slice(0, 34) + ' · ' + qty + (qty > 1 ? ' units' : ' unit') + ' added');
+  return true;
 }
 function setQty(key, qty) {
   cart = cart.filter(function (l) { return l.key !== key || qty > 0; });
@@ -236,10 +261,11 @@ function card(p) {
   var tag = p.badge ? '<span class="tag ' + tagClass(p.badge) + '">' + esc(p.badge) + '</span>' : '';
   var alt = p.img2 ? '<img class="alt" src="' + esc(p.img2) + '" alt="" loading="lazy">' : '';
 
-  /* The brand's own listed price, exactly as its storefront shows it. */
+  /* The trade price -- 30% under the listed price, which is struck through
+     beside it so the figure reads as a discount and not as a cheaper pack. */
   var priceBlock =
     '<div class="wholesale"><span class="amt">' + rupee(p.price) + '</span>' +
-      (p.mrp ? '<span class="lbl">list price</span>' : '') + '</div>' +
+      (p.mrp ? '<span class="lbl">trade price</span>' : '') + '</div>' +
     (p.mrp
       ? '<div class="msrp"><s>MRP ' + rupee(p.mrp) + '</s>' +
         '<span class="offchip">' + p.discount + '% off</span></div>'
@@ -266,11 +292,21 @@ function card(p) {
       '<div class="price-row">' + priceBlock +
         '<div class="card-foot">' +
           '<span class="casepack">' + (defaultVariant(p).title ? esc(defaultVariant(p).title) : '&nbsp;') + '</span>' +
-          '<button class="btn btn-ghost btn-sm" data-add="' + esc(p.slug) + '">Add</button>' +
+          addControl(p) +
         '</div>' +
       '</div>' +
     '</div></article>';
 }
+/* Once a pack is on the order the button stops offering to add it again and
+   points at the cart, where the quantity is edited. Drawn from the cart rather
+   than from a flag set on click, so it survives a re-render and a reload. */
+function addControl(p) {
+  return inCart(p.slug, defaultVariant(p).title || '')
+    ? '<a class="btn btn-gold btn-sm" href="#/cart">' + cartIcon() + 'Go to cart</a>'
+    : '<button class="btn btn-ghost btn-sm" data-add="' + esc(p.slug) + '">' +
+      cartIcon() + 'Add</button>';
+}
+
 function grid(list, cls) {
   if (!list.length) {
     return '<div class="empty"><h3>Nothing matches those filters</h3>' +
@@ -324,8 +360,18 @@ function viewHome() {
   var hero = PRODUCTS.filter(function (p) { return /ghee|atta|honey|jaggery/i.test(p.title); });
   var pick = [hero[2] || PRODUCTS[2], hero[0] || PRODUCTS[0], hero[5] || PRODUCTS[5]];
 
-  var bestsellers = PRODUCTS.filter(function (p) { return /best seller|trending/i.test(p.badge); }).slice(0, 10);
-  var fresh       = PRODUCTS.filter(function (p) { return /new launch|must try|special|value pack/i.test(p.badge); }).slice(0, 5);
+  /* These two rails used to run on badges -- "best seller", "new launch" --
+     which came from the pantry feeds and are parked along with them. Nothing
+     on an imports front carries one, so both read from what this catalogue
+     actually has: the supplier's publish date, and the gap between MRP and the
+     trade price. No stand-in for sales data, because there is none to stand in
+     for: a rail claiming what other shops reorder would be inventing it. */
+  var deepest = PRODUCTS.slice().sort(function (a, b) {
+    return (b.discount || 0) - (a.discount || 0) ||
+           ((b.mrp || 0) - b.price) - ((a.mrp || 0) - a.price);
+  }).slice(0, 5);
+  var fresh   = PRODUCTS.filter(function (p) { return p.published; })
+    .sort(function (a, b) { return b.published - a.published; }).slice(0, 5);
 
   var catTiles = CATEGORIES.filter(function (c) { return c.count; }).slice(0, 12).map(function (c) {
     var rep = PRODUCTS.filter(function (p) { return p.category === c.key; })[0];
@@ -343,12 +389,14 @@ function viewHome() {
       '<h1>The whole exported chocolate aisle, on <em>one invoice</em>.</h1>' +
       '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other export-led ' +
       'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
-      BRANDS.length + ' separate accounts to carry. Wholesale rates, one order, one delivery.</p>' +
+      BRANDS.length + ' separate accounts to carry. <b>30% off every list price</b>, ' +
+      'and one ' + rupee(ORDER_MIN) + ' minimum across the whole order — not per brand.</p>' +
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Open a retailer account</a>' +
         '<a href="#/sell" class="btn btn-ghost btn-lg">I make things &rarr;</a>' +
       '</div>' +
-      '<p class="hero-note">Free to join · No minimum on your first order · Free returns on openers</p>' +
+      '<p class="hero-note">Free to join · ' + rupee(ORDER_MIN) +
+      ' minimum, combined across brands · Free returns on openers</p>' +
     '</div>' +
     '<div class="arch-collage">' +
       '<div class="arch arch-a"><img src="' + esc(pick[0].img) + '" alt=""></div>' +
@@ -364,7 +412,8 @@ function viewHome() {
     trustItem('M20 6 9 17l-5-5', 'Free returns on openers',
       'Your first order from any brand is returnable. Trying a brand costs nothing.') +
     trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'One cart, every brand',
-      'Mix ' + BRANDS.length + ' labels into a single order, a single invoice, a single delivery.') +
+      'Mix ' + BRANDS.length + ' labels into a single order. The ' + rupee(ORDER_MIN) +
+      ' minimum is on the order as a whole, not on each brand.') +
     trustItem('M12 2 3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z', 'Import papers in order',
       'FSSAI, GST and customs documentation checked before a label ever goes live.') +
   '</div></section>' +
@@ -400,7 +449,7 @@ function viewHome() {
           '<div class="spot-meta">' +
             (importedFrom(b)
               ? '<div><span>Imported from</span><b>' + esc(importedFrom(b)) + '</b></div>' : '') +
-            '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
+            '<div><span>Order minimum</span><b>' + rupee(ORDER_MIN) + '</b></div>' +
             '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
           '</div>' +
           '<a href="#/brand/' + esc(b.id) + '" class="btn btn-gold btn-lg">' +
@@ -431,15 +480,15 @@ function viewHome() {
     : '') +
 
   '<section class="sec-tight"><div class="wrap">' +
-    '<div class="sec-head"><div><h2>Moving fastest this month</h2>' +
-    '<p>What other retailers are reordering.</p></div>' +
-    '<a class="link-more" href="#/browse?sort=rating">Browse top rated</a></div>' +
-    grid(bestsellers.slice(0, 5), 'five') +
+    '<div class="sec-head"><div><h2>Where the discount cuts deepest</h2>' +
+    '<p>The widest gap between MRP and your trade price.</p></div>' +
+    '<a class="link-more" href="#/browse?sort=discount">Browse by discount</a></div>' +
+    grid(deepest, 'five') +
   '</div></section>' +
 
   '<section class="sec"><div class="wrap">' +
     '<div class="sec-head"><div><h2>New this season</h2>' +
-    '<p>Just landed from the makers.</p></div>' +
+    '<p>The most recent listings to reach the warehouse.</p></div>' +
     '<a class="link-more" href="#/browse?sort=new">See everything new</a></div>' +
     grid(fresh, 'five') +
   '</div></section>' +
@@ -483,8 +532,19 @@ function viewBrowse(params) {
     'price-asc':  function (a, b) { return a.price - b.price; },
     'price-desc': function (a, b) { return b.price - a.price; },
     'rating':     function (a, b) { return (b.rating - a.rating) || (b.reviews - a.reviews); },
-    'new':        function (a, b) { return score(b) - score(a); },
-    'featured':   function (a, b) { return (b.reviews || 0) - (a.reviews || 0); }
+    'discount':   function (a, b) { return (b.discount || 0) - (a.discount || 0); },
+    /* Newest by the supplier's own publish date, falling back to the badge for
+       any feed that carries one instead of a date. */
+    'new':        function (a, b) {
+      return (b.published || 0) - (a.published || 0) || score(b) - score(a);
+    },
+    /* Nothing on an imports front has a review yet, so featured degrades to the
+       discount and then to recency rather than to catalogue order. */
+    'featured':   function (a, b) {
+      return (b.reviews || 0) - (a.reviews || 0) ||
+             (b.discount || 0) - (a.discount || 0) ||
+             (b.published || 0) - (a.published || 0);
+    }
   };
   function score(p) { return /new launch/i.test(p.badge) ? 2 : /special|must try|limited/i.test(p.badge) ? 1 : 0; }
   list = list.slice().sort(sorters[sort] || sorters.featured);
@@ -545,7 +605,10 @@ function viewBrowse(params) {
         '<p class="cnt">' + list.length + ' product' + (list.length === 1 ? '' : 's') +
         ' · ' + esc(sub) + '</p></div>' +
         '<select class="sortsel" id="sortSel">' +
-          opt('featured', 'Most reviewed', sort) + opt('rating', 'Top rated', sort) +
+          opt('featured', 'Featured', sort) +
+          (PRODUCTS.some(function (p) { return p.reviews; })
+            ? opt('rating', 'Top rated', sort) : '') +
+          opt('discount', 'Biggest discount', sort) +
           opt('new', 'Newest', sort) + opt('price-asc', 'Price: low to high', sort) +
           opt('price-desc', 'Price: high to low', sort) +
         '</select></div>' +
@@ -602,13 +665,12 @@ function snapshotOrder() {
       });
     var sub = lines.reduce(function (n, l) { return n + l.total; }, 0);
     return { id: b.id, name: b.name, origin: b.origin || '', importedFrom: importedFrom(b),
-             leadDays: b.leadDays || '', openingMin: b.openingMin, subtotal: sub,
-             met: sub >= b.openingMin, freight: sub >= b.openingMin ? 0 : 850, lines: lines };
+             leadDays: b.leadDays || '', subtotal: sub, lines: lines };
   }).filter(function (g) { return g.lines.length; });
 
   var sub     = groups.reduce(function (n, g) { return n + g.subtotal; }, 0);
   var gst     = Math.round(sub * 0.05);
-  var freight = groups.reduce(function (n, g) { return n + g.freight; }, 0);
+  var freight = sub >= ORDER_MIN ? 0 : FREIGHT;
   return {
     id: nextOrderId(), placedAt: Date.now(), status: 'Placed',
     buyer: {
@@ -616,6 +678,7 @@ function snapshotOrder() {
       gst:  (account && account.gst)  || '', type: (account && account.type) || ''
     },
     brands: groups,
+    orderMin: ORDER_MIN, met: sub >= ORDER_MIN,
     units: groups.reduce(function (n, g) {
       return n + g.lines.reduce(function (m, l) { return m + l.qty; }, 0); }, 0),
     subtotal: sub, gst: gst, freight: freight, total: sub + gst + freight
@@ -690,7 +753,6 @@ function viewAdmin() {
         '<div class="adm-brand-head"><h4>' + esc(g.name) + '</h4>' +
           '<span>' + (g.origin ? esc(g.origin) + ' · ' : '') +
           'lead ' + esc(g.leadDays) + ' days · ' + rupee(g.subtotal) +
-          (g.met ? '' : ' · under the ' + rupee(g.openingMin) + ' minimum') +
           '</span></div>' +
         '<table class="adm-lines"><tbody>' + lines + '</tbody></table>' +
       '</div>';
@@ -768,8 +830,8 @@ function viewProduct(slug) {
   /* Price box is re-rendered whenever the size changes, so the figure always
      belongs to the option that is actually selected. */
   var pricing = '<div id="priceBox">' + priceBoxHtml(p.variants[0] || p) + '</div>' +
-    '<p class="trade-note">' + esc(b.short) + ' sets its trade rate at onboarding. ' +
-    'The price above is the brand’s own listed price.</p>';
+    '<p class="trade-note">Trade price — 30% under ' + esc(b.short) + '’s own listed ' +
+    'price, which is the MRP shown beside it.</p>';
 
   var opts = (p.variants || []).filter(function (v) { return v.title; });
   var sizes = opts.length > 1
@@ -802,7 +864,7 @@ function viewProduct(slug) {
         '<div class="qty"><button data-q="-1">&minus;</button><span id="qtyVal">1</span>' +
         '<button data-q="1">+</button></div>' +
         '<button class="btn btn-ink btn-lg" id="addBtn" style="flex:1;min-width:190px">' +
-        (account ? 'Add to order' : 'Sign in to order') + '</button>' +
+        cartIcon() + (account ? 'Add to order' : 'Sign in to order') + '</button>' +
       '</div>' +
       (p.desc
         ? '<div class="pdp-desc"><h3>About this product</h3><p>' + esc(p.desc) + '</p>' +
@@ -816,7 +878,8 @@ function viewProduct(slug) {
         (p.origin ? '<dt>Country of origin</dt><dd>' + esc(p.origin) + '</dd>' : '') +
         '<dt>Shipping</dt><dd>Export dispatch</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
-        '<dt>Opening order</dt><dd>' + rupee(b.openingMin) + ' minimum</dd>' +
+        '<dt>Order minimum</dt><dd>' + rupee(ORDER_MIN) +
+          ', combined across every brand</dd>' +
         '<dt>Returns</dt><dd>Free on your opening order</dd>' +
         (p.values.length ? '<dt>Values</dt><dd>' + p.values.map(function (v) {
           return esc(VAL[v].label); }).join(' · ') + '</dd>' : '') +
@@ -857,7 +920,7 @@ function viewBrand(id) {
       '</div>' +
     '</div>' +
     '<div class="brand-bar">' +
-      '<div><span>Opening order</span><b>' + rupee(b.openingMin) + '</b></div>' +
+      '<div><span>Order minimum</span><b>' + rupee(ORDER_MIN) + ' combined</b></div>' +
       '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
       '<div class="grow">' +
         (account ? '<a href="#/browse" class="btn btn-ink">Build an order</a>'
@@ -889,19 +952,28 @@ function viewCart() {
       '<p>Add cases from any brand — they ship together on one invoice.</p>' +
       '<a href="#/browse" class="btn btn-ink btn-lg" style="margin-top:20px">Browse products</a></div></div>';
   }
-  /* Orders are per brand on Faire, and so are the minimums. Group accordingly. */
+  /* Lines are still grouped by brand -- each label ships and leads separately,
+     and a buyer wants to see what is going on each label's order. The minimum
+     is not grouped: it is one figure for the order, cleared by the whole cart
+     together, so a shop can take two bars from twenty labels and still hit it. */
   var groups = BRANDS.map(function (b) {
     var lines = cart.filter(function (l) { return (find(l.id) || {}).brandId === b.id; });
     var sub   = lines.reduce(function (n, l) {
       var p = find(l.id); return n + variantOf(p, l.size).price * l.qty;
     }, 0);
-    return { brand: b, lines: lines, sub: sub, met: sub >= b.openingMin };
+    return { brand: b, lines: lines, sub: sub };
   }).filter(function (g) { return g.lines.length; });
 
   var sub     = groups.reduce(function (n, g) { return n + g.sub; }, 0);
   var gst     = Math.round(sub * 0.05);
-  var freight = groups.reduce(function (n, g) { return n + (g.met ? 0 : 850); }, 0);
-  var shortBy = groups.filter(function (g) { return !g.met; });
+  var met     = sub >= ORDER_MIN;
+  var freight = met ? 0 : FREIGHT;
+  var toGo    = Math.max(0, ORDER_MIN - sub);
+  var pct     = Math.min(100, Math.round(sub / ORDER_MIN * 100));
+  var saved   = cart.reduce(function (n, l) {
+    var v = variantOf(find(l.id), l.size);
+    return n + Math.max(0, (v.mrp || v.price) - v.price) * l.qty;
+  }, 0);
 
   function lineRow(l) {
     var p = find(l.id); if (!p) return '';
@@ -929,7 +1001,6 @@ function viewCart() {
   }
 
   var sections = groups.map(function (g) {
-    var pct = Math.min(100, Math.round(g.sub / g.brand.openingMin * 100));
     return '<section style="margin-bottom:30px">' +
       '<div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;' +
         'border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:4px;flex-wrap:wrap">' +
@@ -941,13 +1012,8 @@ function viewCart() {
       '</div>' +
       g.lines.map(lineRow).join('') +
       '<div style="padding-top:12px">' +
-        (g.met
-          ? '<p style="font-size:13px;color:var(--leaf);font-weight:600">' +
-            '&#10003; ' + rupee(g.sub) + ' · opening minimum met, freight on us</p>'
-          : '<p style="font-size:13px;color:var(--ink-soft)">' + rupee(g.sub) + ' of ' +
-            rupee(g.brand.openingMin) + ' minimum — add <b>' +
-            rupee(g.brand.openingMin - g.sub) + '</b> to unlock free freight.</p>' +
-            '<div class="progress" style="max-width:340px"><i style="width:' + pct + '%"></i></div>') +
+        '<p style="font-size:13px;color:var(--ink-soft)">' +
+        rupee(g.sub) + ' from ' + esc(g.brand.short) + '</p>' +
       '</div></section>';
   }).join('');
 
@@ -962,12 +1028,16 @@ function viewCart() {
     '</div>' +
     '<aside class="summary">' +
       '<h3 style="font-size:20px;margin-bottom:14px">Summary</h3>' +
-      (shortBy.length
-        ? '<p style="font-size:13px;color:var(--sindoor);font-weight:600;margin-bottom:14px">' +
-          shortBy.length + ' brand' + (shortBy.length === 1 ? ' is' : 's are') +
-          ' below the opening minimum.</p>'
-        : '<p style="font-size:13px;color:var(--leaf);font-weight:600;margin-bottom:14px">' +
-          '&#10003; Every minimum met · freight is on us</p>') +
+      /* One line about one minimum. It counts the whole cart, so the number
+         moves on every change rather than only on the brand being edited. */
+      (met
+        ? '<p style="font-size:13px;color:var(--leaf);font-weight:600;margin-bottom:14px">' +
+          '&#10003; ' + rupee(ORDER_MIN) + ' minimum met · freight is on us</p>'
+        : '<p style="font-size:13px;color:var(--sindoor);font-weight:600;margin-bottom:4px">' +
+          'Add ' + rupee(toGo) + ' to reach the ' + rupee(ORDER_MIN) + ' order minimum.</p>' +
+          '<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px">' +
+          'It counts every brand together, not one at a time.</p>' +
+          '<div class="progress" style="margin-bottom:14px"><i style="width:' + pct + '%"></i></div>') +
       groups.map(function (g) {
         return '<div class="sum-line"><span>' + esc(g.brand.short) + '</span><span>' +
                rupee(g.sub) + '</span></div>';
@@ -977,10 +1047,17 @@ function viewCart() {
         (freight ? rupee(freight) : 'Free') + '</span></div>' +
       '<div class="sum-line total"><span>Order total</span><span>' +
         rupee(sub + gst + freight) + '</span></div>' +
+      (saved ? '<div class="sum-line"><span>You save (30% off list)</span><span>' +
+        '&minus;' + rupee(saved) + '</span></div>' : '') +
       '<p style="font-size:12px;color:var(--ink-mute);margin:12px 0 16px;line-height:1.5">' +
         'Your opening order from each brand is fully returnable.</p>' +
-      '<button class="btn btn-ink btn-lg btn-block"' + (shortBy.length ? ' disabled' : '') +
-        ' id="placeBtn">Place order</button>' +
+      /* A disabled button that only says "Place order" leaves the buyer to
+         work out why. It says what is missing instead, in the one place they
+         are already looking. */
+      '<button class="btn btn-ink btn-lg btn-block"' + (met ? '' : ' disabled') +
+        ' id="placeBtn">' +
+        (met ? 'Place order' : 'Add ' + rupee(toGo) + ' to place order') +
+      '</button>' +
       '<a href="#/browse" class="btn btn-plain btn-block" style="margin-top:8px">Keep shopping</a>' +
     '</aside></div>';
 }
@@ -1018,7 +1095,7 @@ function viewJoin() {
         '<button class="btn btn-ink btn-lg btn-block" type="submit">Create account</button>' +
       '</form>' +
       '<ul class="perks">' +
-        perk('Trade rates across every label, from day one.') +
+        perk('Trade rates 30% under list, across every label, from day one.') +
         perk('Free returns on your first order from any brand.') +
         perk('One invoice and one delivery across every label.') +
       '</ul>' +
@@ -1200,6 +1277,7 @@ function bindView(r) {
     function repaint() {
       var box = byId('priceBox');
       if (box) box.innerHTML = priceBoxHtml(pool[vi], qty);
+      syncAddBtn();
     }
 
     qa('#pdpThumbs .thumb').forEach(function (t) {
@@ -1224,10 +1302,23 @@ function bindView(r) {
         repaint();
       });
     });
+    /* The label follows the selected size: adding the 100g pack leaves the
+       250g one still offering to be added. */
     var addBtn = byId('addBtn');
+    function syncAddBtn() {
+      if (!addBtn) return;
+      var here = account && inCart(r.path[1], (pool[vi] || {}).title || '');
+      addBtn.innerHTML = cartIcon() + (!account ? 'Sign in to order'
+                       : here ? 'Go to cart' : 'Add to order');
+      addBtn.className = 'btn btn-lg ' + (here ? 'btn-gold' : 'btn-ink');
+    }
+    syncAddBtn();
     if (addBtn) addBtn.addEventListener('click', function () {
       if (!account) { promptSignup(); return; }
-      addToCart(r.path[1], (pool[vi] || {}).title || '', qty);
+      var size = (pool[vi] || {}).title || '';
+      if (inCart(r.path[1], size)) { location.hash = '#/cart'; return; }
+      addToCart(r.path[1], size, qty);
+      syncAddBtn();
     });
   }
 
@@ -1345,7 +1436,12 @@ document.addEventListener('click', function (e) {
   var btn = e.target && e.target.closest ? e.target.closest('[data-add]') : null;
   if (!btn) return;
   var p = find(btn.getAttribute('data-add'));
-  if (p) addToCart(p.slug, defaultVariant(p).title || '', 1);
+  /* Swapped in place: re-rendering the view here would rebuild the whole grid
+     and throw away the reader's scroll position. */
+  if (p && addToCart(p.slug, defaultVariant(p).title || '', 1)) {
+    btn.outerHTML = '<a class="btn btn-gold btn-sm" href="#/cart">' +
+      cartIcon() + 'Go to cart</a>';
+  }
 });
 
 /* ---------------- boot ---------------- */
