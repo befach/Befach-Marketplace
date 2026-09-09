@@ -111,9 +111,10 @@ function flushRelay() {
 }
 
 /* ---------------- helpers ---------------- */
-/* One minimum for the whole order, not one per brand. A shop can mix any
-   labels to clear it, which is the point of buying the aisle off one invoice,
-   and freight is free once the order as a whole is over the line. */
+/* One minimum for the whole order, not one per brand: a shop can mix any labels
+   to clear it, which is the point of buying the aisle off one invoice. The
+   minimum decides whether an order can be placed, and nothing else -- freight
+   is carried by the buyer on every order, never absorbed. */
 var ORDER_MIN = 5000;
 var FREIGHT   = 850;
 
@@ -676,7 +677,7 @@ function snapshotOrder() {
 
   var sub     = groups.reduce(function (n, g) { return n + g.subtotal; }, 0);
   var gst     = Math.round(sub * 0.05);
-  var freight = sub >= ORDER_MIN ? 0 : FREIGHT;
+  var freight = FREIGHT;
   return {
     id: nextOrderId(), placedAt: Date.now(), status: 'Placed',
     buyer: {
@@ -976,7 +977,7 @@ function viewCart() {
   var sub     = groups.reduce(function (n, g) { return n + g.sub; }, 0);
   var gst     = Math.round(sub * 0.05);
   var met     = sub >= ORDER_MIN;
-  var freight = met ? 0 : FREIGHT;
+  var freight = FREIGHT;
   var toGo    = Math.max(0, ORDER_MIN - sub);
   var pct     = Math.min(100, Math.round(sub / ORDER_MIN * 100));
   var saved   = cart.reduce(function (n, l) {
@@ -1041,7 +1042,7 @@ function viewCart() {
          moves on every change rather than only on the brand being edited. */
       (met
         ? '<p style="font-size:13px;color:var(--leaf);font-weight:600;margin-bottom:14px">' +
-          '&#10003; ' + rupee(ORDER_MIN) + ' minimum met · freight is on us</p>'
+          '&#10003; ' + rupee(ORDER_MIN) + ' minimum met · ready to place</p>'
         : '<p style="font-size:13px;color:var(--sindoor);font-weight:600;margin-bottom:4px">' +
           'Add ' + rupee(toGo) + ' to reach the ' + rupee(ORDER_MIN) + ' order minimum.</p>' +
           '<p style="font-size:12px;color:var(--ink-mute);margin-bottom:10px">' +
@@ -1052,8 +1053,8 @@ function viewCart() {
                rupee(g.sub) + '</span></div>';
       }).join('') +
       '<div class="sum-line"><span>GST (5%)</span><span>' + rupee(gst) + '</span></div>' +
-      '<div class="sum-line"><span>Freight</span><span>' +
-        (freight ? rupee(freight) : 'Free') + '</span></div>' +
+      '<div class="sum-line"><span>Freight</span><span>' + rupee(freight) +
+        '</span></div>' +
       '<div class="sum-line total"><span>Order total</span><span>' +
         rupee(sub + gst + freight) + '</span></div>' +
       (saved ? '<div class="sum-line"><span>You save (30% off list)</span><span>' +
