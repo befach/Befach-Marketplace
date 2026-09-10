@@ -133,6 +133,22 @@ p{margin:0}
 .hero h1{font-size:clamp(40px,5.1vw,66px);line-height:1.02;letter-spacing:-.03em}
 .hero h1 em{font-style:normal;color:var(--neel);
   background-image:linear-gradient(180deg,transparent 58%,rgba(217,154,22,.42) 58%,rgba(217,154,22,.42) 94%,transparent 94%)}
+/* The two facts that decide whether a visitor is in the right place at all --
+   who we sell to, and the floor on an order -- carried at headline weight
+   rather than left to body copy under the fold. */
+.hero-facts{display:flex;flex-wrap:wrap;gap:12px;margin-top:26px}
+.hero-fact{flex:1 1 150px;display:flex;flex-direction:column;gap:9px;
+  padding:16px 18px;border-radius:var(--r);background:var(--neel);color:#fff}
+.hero-fact.gold{background:var(--haldi);color:#2A1D02}
+.hero-fact.red{background:var(--sindoor);color:#fff}
+.hero-fact b{font-family:var(--serif);font-size:clamp(28px,3.1vw,38px);font-weight:600;
+  line-height:1;letter-spacing:-.02em;white-space:nowrap}
+.hero-fact.gold b{color:#2A1D02}
+.hero-fact span{font-size:12.5px;line-height:1.35;color:#C9D4E0}
+.hero-fact.gold span{color:#4A3708}
+.hero-fact.red span{color:#F6DED8}
+@media(max-width:560px){.hero-fact{flex:1 1 100%;flex-direction:row;align-items:baseline;gap:12px}}
+
 .hero-sub{margin-top:22px;font-size:17.5px;line-height:1.62;color:var(--ink-soft);
   max-width:52ch}
 .hero-cta{display:flex;gap:12px;margin-top:32px;flex-wrap:wrap}
@@ -159,6 +175,24 @@ p{margin:0}
 @media(max-width:560px){.arch-c{display:none}.arch-collage{grid-template-columns:1fr 1fr}}
 
 /* ================= trust strip ================= */
+/* The minimum order, stated at the size of the decision it forces. Navy ground
+   so it reads as the house speaking rather than as another product tile. */
+.minband{background:var(--neel);color:#fff}
+.minband-in{display:flex;align-items:center;gap:36px;padding:34px 0;flex-wrap:wrap}
+.minband-fig{flex:0 0 auto;display:flex;flex-direction:column;line-height:1}
+.minband-fig b{font-family:var(--serif);font-size:76px;font-weight:600;
+  color:var(--haldi);letter-spacing:-.02em}
+.minband-fig span{font-size:12.5px;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:#C9D4E0;margin-top:10px}
+.minband-copy{flex:1 1 380px}
+.minband-copy h3{font-size:23px;margin-bottom:8px;color:#fff}
+.minband-copy p{font-size:14.5px;line-height:1.65;color:#C9D4E0;max-width:64ch}
+@media (max-width:700px){
+  .minband-in{gap:20px;padding:28px 0}
+  .minband-fig b{font-size:58px}
+  .minband-copy h3{font-size:20px}
+}
+
 .trust{background:var(--white);border-top:1px solid var(--line);
   border-bottom:1px solid var(--line)}
 .trust-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0}
@@ -437,6 +471,12 @@ p{margin:0}
   border-radius:var(--r);background:var(--white);padding:0 14px;font-size:14.5px;
   font-family:var(--sans);color:var(--ink);transition:border-color .15s,box-shadow .15s}
 .field textarea{height:96px;padding:12px 14px;resize:vertical}
+/* The browser's own file button needs room the 46px input rule does not give it. */
+.field input[type=file]{height:auto;padding:10px 12px;font-size:13.5px;
+  color:var(--ink-soft);cursor:pointer}
+.field input[type=file]::file-selector-button{margin-right:12px;padding:7px 14px;
+  border:1px solid var(--line-2);border-radius:999px;background:var(--paper-2);
+  font:inherit;font-size:13px;color:var(--ink);cursor:pointer}
 .field input:focus,.field select:focus,.field textarea:focus{outline:none;
   border-color:var(--neel);box-shadow:0 0 0 3px var(--neel-tint)}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}

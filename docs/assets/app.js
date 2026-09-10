@@ -72,6 +72,9 @@ var orders  = load('befach.orders', []);
    an Apps Script web app bound to that sheet, deployed to run as its owner,
    so the page needs no key beyond the shared string below -- which travels in
    this file and is therefore a filter against crawlers, not a secret. */
+/* Apps Script takes a post of a few megabytes, but a logo is a courtesy here
+   rather than an asset library: past this, a link is the better answer. */
+var LOGO_MAX  = 2 * 1024 * 1024;
 var SHEET_URL = 'https://script.google.com/macros/s/AKfycbxus9uW8Ng0wozqP-8GbO9dBpFpYs-Jp3T8r4Mb64lzqdNzuCYu81mX1F_Xn7fVWZjvAg/exec';
 var SHEET_KEY = 'QBTO0I8PX3p_WBpJKYZK1syvO_RRGKVz';   // must match SECRET in the Apps Script
 
@@ -392,18 +395,33 @@ function viewHome() {
   return '' +
   '<section class="hero"><div class="wrap hero-grid">' +
     '<div>' +
-      '<span class="eyebrow">Wholesale exported chocolates</span>' +
-      '<h1>The whole exported chocolate aisle, on <em>one invoice</em>.</h1>' +
-      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other export-led ' +
-      'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
-      BRANDS.length + ' separate accounts to carry. <b>30% off every list price</b>, ' +
-      'and one ' + rupee(ORDER_MIN) + ' minimum across the whole order — not per brand.</p>' +
-      '<div class="hero-cta">' +
-        '<a href="#/join" class="btn btn-ink btn-lg">Open a retailer account</a>' +
-        '<a href="#/sell" class="btn btn-ghost btn-lg">I make things &rarr;</a>' +
+      '<span class="eyebrow">B2B only · wholesale imported chocolates</span>' +
+      '<h1>The whole imported chocolate aisle, on <em>one invoice</em>.</h1>' +
+      /* Minimum, not flat: 58 of the listings are further under their MRP than
+         30%, so the claim is a floor and reads as one. */
+      '<div class="hero-facts">' +
+        '<div class="hero-fact"><b>B2B</b>' +
+          '<span>only — imported chocolates, sold wholesale to the trade</span></div>' +
+        '<div class="hero-fact gold"><b>' + rupee(ORDER_MIN) + '</b>' +
+          '<span>minimum order, combined across brands</span></div>' +
+        '<div class="hero-fact red"><b>30% off</b>' +
+          '<span>every list price, at minimum — many go deeper</span></div>' +
       '</div>' +
-      '<p class="hero-note">Free to join · ' + rupee(ORDER_MIN) +
-      ' minimum, combined across brands · Free returns on openers</p>' +
+      '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other imported ' +
+      'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
+      BRANDS.length + ' separate accounts to carry. We sell to registered shops, cafés ' +
+      'and gift stores, never single packs to the public.</p>' +
+      /* The second button used to say "I make things", from when this was a
+         marketplace for makers. Befach imports and resells other companies'
+         labels, so nobody arriving here makes anything -- the other thing a
+         buyer wants is to see the range before opening an account. */
+      '<div class="hero-cta">' +
+        '<a href="#/join" class="btn btn-ink btn-lg">Open a trade account</a>' +
+        '<a href="#/browse" class="btn btn-ghost btn-lg">Browse ' + PRODUCTS.length +
+        ' products &rarr;</a>' +
+      '</div>' +
+      '<p class="hero-note">Free to join · GST-registered buyers only · ' +
+      'Free returns on your opening order</p>' +
     '</div>' +
     '<div class="arch-collage">' +
       '<div class="arch arch-a"><img src="' + esc(pick[0].img) + '" alt=""></div>' +
@@ -413,14 +431,29 @@ function viewHome() {
     '</div>' +
   '</div></section>' +
 
+  /* The one number a shop has to know before it starts filling a cart, said
+     once at a size it cannot be missed at -- and next to it, the thing that
+     makes this a trade counter and not a shop. */
+  '<section class="minband"><div class="wrap minband-in">' +
+    '<div class="minband-fig"><b>' + rupee(ORDER_MIN) + '</b>' +
+      '<span>minimum order</span></div>' +
+    '<div class="minband-copy">' +
+      '<h3>One minimum for the whole order, not one per brand</h3>' +
+      '<p>Mix any of the ' + BRANDS.length + ' imported labels to clear it — two bars ' +
+      'from twenty brands counts the same as twenty from one. Wholesale only: a trade ' +
+      'account and a phone number open it, and orders below ' + rupee(ORDER_MIN) + ' ' +
+      'cannot be placed.</p>' +
+    '</div>' +
+  '</div></section>' +
+
   '<section class="trust"><div class="wrap trust-grid">' +
     trustItem('M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'Dispatched in 3-5 days',
       'Held in temperature-controlled storage and picked the day your order clears.') +
     trustItem('M20 6 9 17l-5-5', 'Free returns on openers',
       'Your first order from any brand is returnable. Trying a brand costs nothing.') +
-    trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'One cart, every brand',
-      'Mix ' + BRANDS.length + ' labels into a single order. The ' + rupee(ORDER_MIN) +
-      ' minimum is on the order as a whole, not on each brand.') +
+    trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'Trade counter, not a shop',
+      'Wholesale rates and case quantities for registered retailers. We do not sell ' +
+      'to the public.') +
     trustItem('M12 2 3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z', 'Import papers in order',
       'FSSAI, GST and customs documentation checked before a label ever goes live.') +
   '</div></section>' +
@@ -480,7 +513,7 @@ function viewHome() {
             '<div class="mono" style="background:' + esc(b.accent) + '">' +
               esc(b.short.charAt(0)) + '</div>' +
             '<h5>' + esc(b.name) + '</h5>' +
-            '<span>' + (importedFrom(b) ? esc(importedFrom(b)) : 'Export-led range') + '</span>' +
+            '<span>' + (importedFrom(b) ? esc(importedFrom(b)) : 'Imported range') + '</span>' +
             '<span>' + n + ' products</span></a>';
         }).join('') + '</div>' +
       '</div></section>'
@@ -500,16 +533,22 @@ function viewHome() {
     grid(fresh, 'five') +
   '</div></section>' +
 
-  '<section class="sec-tight"><div class="wrap">' +
-    '<div class="sec-head"><div><h2>Onboarding now</h2>' +
-    '<p>Makers in the queue, going live over the next quarter.</p></div>' +
-    '<a class="link-more" href="#/sell">Put your brand here</a></div>' +
-    '<div class="pipeline-grid">' + PIPELINE.map(function (b) {
-      return '<div class="pbrand"><div class="mono" style="background:' + esc(b.accent) + '">' +
-        esc(b.name.charAt(0)) + '</div><h5>' + esc(b.name) + '</h5>' +
-        '<span>' + esc(b.cat) + '</span><span>Trade-ready</span></div>';
-    }).join('') + '</div>' +
-  '</div></section>' +
+  /* Every brand in the pipeline is parked, so this rendered as a heading with
+     nothing under it -- no empty state to catch it either, since the grid is
+     built straight from the list. Gated rather than deleted: unpark a record
+     and the rail comes back, the way the brand rail above it works. */
+  (PIPELINE.length
+    ? '<section class="sec-tight"><div class="wrap">' +
+        '<div class="sec-head"><div><h2>Arriving next</h2>' +
+        '<p>Labels being brought in over the coming quarter.</p></div>' +
+        '<a class="link-more" href="#/sell">List your brand</a></div>' +
+        '<div class="pipeline-grid">' + PIPELINE.map(function (b) {
+          return '<div class="pbrand"><div class="mono" style="background:' + esc(b.accent) + '">' +
+            esc(b.name.charAt(0)) + '</div><h5>' + esc(b.name) + '</h5>' +
+            '<span>' + esc(b.cat) + '</span><span>Trade-ready</span></div>';
+        }).join('') + '</div>' +
+      '</div></section>'
+    : '') +
 
   '<div class="blockprint" style="margin:0 0 -1px"></div>';
 }
@@ -886,7 +925,7 @@ function viewProduct(slug) {
         /* Stated by the supplier on the listing itself, so it is per pack:
            two bars of the same brand can be brought in from two countries. */
         (p.origin ? '<dt>Country of origin</dt><dd>' + esc(p.origin) + '</dd>' : '') +
-        '<dt>Shipping</dt><dd>Export dispatch</dd>' +
+        '<dt>Supply</dt><dd>Imported stock, wholesale only</dd>' +
         '<dt>Lead time</dt><dd>' + esc(b.leadDays) + ' working days</dd>' +
         '<dt>Order minimum</dt><dd>' + rupee(ORDER_MIN) +
           ', combined across every brand</dd>' +
@@ -920,7 +959,7 @@ function viewBrand(id) {
       '<div class="brand-hero-in">' +
         '<h1>' + esc(b.name) + '</h1>' +
         '<div class="loc"><span>' + (importedFrom(b)
-            ? 'Imported from ' + esc(importedFrom(b)) : 'Export-led collection') +
+            ? 'Imported from ' + esc(importedFrom(b)) : 'Imported range') +
           '</span><span>·</span>' +
         (b.since ? '<span>Since ' + b.since + '</span><span>·</span>' : '') +
         '<span>' + list.length + ' products</span></div>' +
@@ -1087,8 +1126,9 @@ function viewJoin() {
     '<div class="split-form">' +
       '<span class="eyebrow">For retailers</span>' +
       '<h1>Open your trade account</h1>' +
-      '<p>Free, takes two minutes. Once you are verified you will see wholesale rates ' +
-      'across every brand on Befach.</p>' +
+      '<p>Free, takes two minutes. Befach is a wholesale supplier: accounts are for ' +
+      'shops, cafés and gift stores buying to resell, and every order is subject to a ' +
+      rupee(ORDER_MIN) + ' minimum.</p>' +
       '<form id="joinForm">' +
         /* Two fields are asked for and the rest are offered: a name to call the
            shop by and a number to call it on are all an account needs to be
@@ -1137,56 +1177,75 @@ function perk(t) {
     '<path d="M20 6 9 17l-5-5"/></svg><span>' + esc(t) + '</span></li>';
 }
 
-/* ================= VIEW: sell ================= */
+/* ================= VIEW: list your brand =================
+   This page used to pitch artisan makers a marketplace, commission rates and
+   all, and its buttons went to the retailer signup -- so a brand owner clicking
+   "List your brand" was told it was already registered as a shop. Befach buys
+   and imports stock rather than taking a cut of someone's sales, so the pitch
+   is gone and the page does the one thing its name promises: collects the brand.
+
+   The commercial terms that used to sit here (15% on new retailers, 3% on
+   reorders, nil listing fee) were a marketplace's, not a distributor's. Nothing
+   has replaced them, because inventing the real ones is not mine to do. */
 function viewSell() {
-  return '<section class="hero"><div class="wrap hero-grid">' +
-    '<div><span class="eyebrow">For makers</span>' +
-      '<h1>Your craft deserves <em>better shelves</em>.</h1>' +
-      '<p class="hero-sub">Befach gets your products in front of thousands of vetted retailers. ' +
-      'We handle discovery, credit risk, invoicing and returns. You handle the making.</p>' +
-      '<div class="hero-cta">' +
-        '<a href="#/join" class="btn btn-ink btn-lg">Apply to sell</a>' +
-        '<a href="#/browse" class="btn btn-ghost btn-lg">See the marketplace</a>' +
-      '</div>' +
-      '<p class="hero-note">No listing fee · 15% on new-retailer orders · 3% on reorders</p>' +
-    '</div>' +
-    '<div class="arch-collage">' + PRODUCTS.slice(20, 23).map(function (p, i) {
-      return '<div class="arch arch-' + 'abc'.charAt(i) + '"><img src="' + esc(p.img) + '" alt=""></div>';
-    }).join('') + '</div>' +
-  '</div></section>' +
-
-  '<section class="sec"><div class="wrap">' +
-    '<div class="sec-head"><div><h2>How Befach works for a brand</h2>' +
-    '<p>Three steps from application to your first wholesale order.</p></div></div>' +
-    '<div class="steps">' +
-      '<div class="step"><div class="step-n">01</div><h4>Apply and get verified</h4>' +
-      '<p>Send us your GST, FSSAI and lab reports. We check the papers so retailers do not have to. ' +
-      'Most brands clear review inside a week.</p></div>' +
-      '<div class="step"><div class="step-n">02</div><h4>Upload your line sheet</h4>' +
-      '<p>A CSV of products, wholesale rates, MRP and case packs. We build the storefront, ' +
-      'the photography grid and the search listings for you.</p></div>' +
-      '<div class="step"><div class="step-n">03</div><h4>We carry the risk</h4>' +
-      '<p>You are paid on dispatch, and Befach absorbs any default. Returns on opening ' +
-      'orders are on us too.</p></div>' +
-    '</div>' +
-  '</div></section>' +
-
-  '<section class="sec-tight"><div class="wrap">' +
-    '<div class="spot jaali"><div class="spot-inner">' +
-      '<div class="spot-copy"><span class="eyebrow">The economics</span>' +
-        '<h2>Built so a small maker can actually say yes.</h2>' +
-        '<p>No listing fees, no subscription, no ad auction. Befach only earns when you sell, ' +
-        'and earns far less once a retailer is yours.</p>' +
-        '<div class="spot-meta">' +
-          '<div><span>New retailer</span><b>15%</b></div>' +
-          '<div><span>Every reorder</span><b>3%</b></div>' +
-          '<div><span>Listing fee</span><b>Nil</b></div>' +
+  var shots = PRODUCTS.slice(20, 24);
+  return '<div class="split">' +
+    '<div class="split-form">' +
+      '<span class="eyebrow">For brands &amp; suppliers</span>' +
+      '<h1>List your brand</h1>' +
+      '<p>Befach imports and distributes to Indian retail — ' + BRANDS.length +
+      ' labels across ' + PRODUCTS.length + ' lines, sold wholesale to shops, cafés ' +
+      'and gift stores. Tell us about the brand and someone will come back to you.</p>' +
+      '<form id="brandForm">' +
+        '<div class="field"><label for="bname">Brand name</label>' +
+          '<input id="bname" required placeholder="The name on the pack"></div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="bcountry">Country of origin ' +
+            '<span class="hint">optional</span></label>' +
+            '<input id="bcountry" placeholder="e.g. Belgium"></div>' +
+          '<div class="field"><label for="bcat">Category</label>' +
+            '<select id="bcat"><option>Chocolate</option><option>Biscuits &amp; spreads</option>' +
+            '<option>Candy, mints &amp; gum</option><option>Coffee &amp; tea</option>' +
+            '<option>Gift hampers</option><option>Something else</option></select></div>' +
         '</div>' +
-        '<a href="#/join" class="btn btn-gold btn-lg">Apply to sell</a></div>' +
-      '<div class="spot-shots">' + PRODUCTS.slice(30, 34).map(function (p) {
-        return '<img src="' + esc(p.img) + '" alt="" loading="lazy">'; }).join('') + '</div>' +
-    '</div></div>' +
-  '</div></section>';
+        '<div class="field-row">' +
+          '<div class="field"><label for="bcontact">Your name</label>' +
+            '<input id="bcontact" required placeholder="Who we should ask for"></div>' +
+          '<div class="field"><label for="bphone">Phone</label>' +
+            '<input id="bphone" type="tel" inputmode="tel" required autocomplete="tel" ' +
+            'placeholder="Mobile number"></div>' +
+        '</div>' +
+        '<div class="field-row">' +
+          '<div class="field"><label for="bemail">Email <span class="hint">optional</span></label>' +
+            '<input id="bemail" type="email" autocomplete="email" placeholder="name@brand.com"></div>' +
+          '<div class="field"><label for="bsite">Website or catalogue ' +
+            '<span class="hint">optional</span></label>' +
+            '<input id="bsite" placeholder="Link to your range"></div>' +
+        '</div>' +
+        /* A logo is the one thing every brand has to hand and no text field can
+           carry. Anything larger than the cap is asked for as a link instead --
+           the post is a single request to a script, not an upload service. */
+        '<div class="field"><label for="blogo">Logo or pack shot ' +
+          '<span class="hint">optional · JPG or PNG, up to 2 MB</span></label>' +
+          '<input id="blogo" type="file" accept="image/*"></div>' +
+        '<div class="field"><label for="bnote">Anything else ' +
+          '<span class="hint">optional</span></label>' +
+          '<textarea id="bnote" rows="3" placeholder="Range, pack sizes, who ' +
+          'distributes you today, what you are looking for."></textarea></div>' +
+        '<button class="btn btn-ink btn-lg btn-block" type="submit">Send brand details</button>' +
+      '</form>' +
+      '<ul class="perks">' +
+        perk('We buy and import the stock ourselves — no listing fee, no shelf rent.') +
+        perk('Customs, FSSAI and labelling are handled at this end.') +
+        perk('One conversation puts you in front of every retailer on Befach.') +
+      '</ul>' +
+      '<p style="font-size:12px;color:var(--ink-mute);margin-top:20px">' +
+      'Prototype build. What you send here reaches the Befach enquiry sheet; ' +
+      'terms are agreed brand by brand, and nothing is listed until we have spoken.</p>' +
+    '</div>' +
+    '<div class="split-art">' + shots.map(function (p) {
+      return '<img src="' + esc(p.img) + '" alt="">'; }).join('') + '</div>' +
+  '</div>';
 }
 
 function notFound() {
@@ -1434,6 +1493,46 @@ function bindView(r) {
                     page: location.href });
     location.hash = '#/browse';
   });
+  /* brand listing */
+  var bform = byId('brandForm');
+  if (bform) bform.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var val = function (id) {
+      var el = byId(id);
+      return el && el.value ? el.value.trim() : '';
+    };
+    var brand = {
+      brand: val('bname'), country: val('bcountry'), category: val('bcat'),
+      contact: val('bcontact'), phone: val('bphone'), email: val('bemail'),
+      site: val('bsite'), message: val('bnote'), page: location.href
+    };
+    var file = (byId('blogo') || {}).files && byId('blogo').files[0];
+    var send = function () {
+      relay('brand', brand);
+      bform.innerHTML = '<div class="empty" style="padding:34px 0">' +
+        '<h3>Thank you — we have it</h3>' +
+        '<p>' + esc(brand.brand) + ' is with the buying team. We will call ' +
+        esc(brand.phone) + '.</p></div>';
+    };
+    if (!file) return send();
+    if (file.size > LOGO_MAX) {
+      toast('That logo is over 2 MB — paste a link to it instead');
+      return;
+    }
+    /* The logo travels as base64 inside the same post. Reading it is async, so
+       everything else waits on it -- and a read that fails sends the enquiry
+       anyway, because a missing logo is worth less than a lost brand. */
+    var fr = new FileReader();
+    fr.onload = function () {
+      brand.logoName = file.name;
+      brand.logoType = file.type || 'application/octet-stream';
+      brand.logoData = String(fr.result).split(',')[1] || '';
+      send();
+    };
+    fr.onerror = send;
+    fr.readAsDataURL(file);
+  });
+
   var out = byId('signOutBtn');
   if (out) out.addEventListener('click', signOut);
 }
