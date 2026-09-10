@@ -446,18 +446,6 @@ function viewHome() {
     '</div>' +
   '</div></section>' +
 
-  '<section class="trust"><div class="wrap trust-grid">' +
-    trustItem('M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0', 'Dispatched in 3-5 days',
-      'Held in temperature-controlled storage and picked the day your order clears.') +
-    trustItem('M20 6 9 17l-5-5', 'Free returns on openers',
-      'Your first order from any brand is returnable. Trying a brand costs nothing.') +
-    trustItem('M4 4h16v6H4zM4 14h16v6H4z', 'Trade counter, not a shop',
-      'Wholesale rates and case quantities for registered retailers. We do not sell ' +
-      'to the public.') +
-    trustItem('M12 2 3 7v6c0 5 3.8 8.4 9 9 5.2-.6 9-4 9-9V7z', 'Import papers in order',
-      'FSSAI, GST and customs documentation checked before a label ever goes live.') +
-  '</div></section>' +
-
   '<section class="sec"><div class="wrap">' +
     '<div class="sec-head"><div>' +
       '<h2>Shop by category</h2>' +
@@ -552,12 +540,6 @@ function viewHome() {
 
   '<div class="blockprint" style="margin:0 0 -1px"></div>';
 }
-function trustItem(path, title, body) {
-  return '<div class="trust-item">' +
-    '<svg class="trust-ico" viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="' + path + '"/></svg>' +
-    '<h4>' + esc(title) + '</h4><p>' + esc(body) + '</p></div>';
-}
-
 /* ================= VIEW: browse ================= */
 function viewBrowse(params) {
   var cats  = (params.cat || '').split(',').filter(Boolean);
