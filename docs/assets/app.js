@@ -121,6 +121,15 @@ function flushRelay() {
 var ORDER_MIN = 5000;
 var FREIGHT   = 850;
 
+/* The deepest discount actually in the catalogue, read off the data rather
+   than typed in. The headline quotes it, so a rebuild that changes the range
+   -- a source MRP moving, a deep-cut line selling out -- moves the claim with
+   it instead of leaving the page advertising a number nothing matches. */
+var MAX_OFF = PRODUCTS.reduce(function (n, p) {
+  return Math.max(n, p.discount || 0, (p.variants || []).reduce(function (m, v) {
+    return Math.max(m, v.discount || 0); }, 0));
+}, 0);
+
 var inr = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
 function rupee(n) { return '₹' + inr.format(Math.round(n || 0)); }
 function esc(s) {
@@ -271,8 +280,9 @@ function card(p) {
   var tag = p.badge ? '<span class="tag ' + tagClass(p.badge) + '">' + esc(p.badge) + '</span>' : '';
   var alt = p.img2 ? '<img class="alt" src="' + esc(p.img2) + '" alt="" loading="lazy">' : '';
 
-  /* The trade price -- 30% under the listed price, which is struck through
-     beside it so the figure reads as a discount and not as a cheaper pack. */
+  /* The trade price -- at least 30% under the listed price, which is struck
+     through beside it so the figure reads as a discount and not as a cheaper
+     pack. The chip carries this pack's own percentage. */
   var priceBlock =
     '<div class="wholesale"><span class="amt">' + rupee(p.price) + '</span>' +
       (p.mrp ? '<span class="lbl">trade price</span>' : '') + '</div>' +
@@ -397,15 +407,16 @@ function viewHome() {
     '<div>' +
       '<span class="eyebrow">B2B only · wholesale imported chocolates</span>' +
       '<h1>The whole imported chocolate aisle, on <em>one invoice</em>.</h1>' +
-      /* Minimum, not flat: 58 of the listings are further under their MRP than
-         30%, so the claim is a floor and reads as one. */
+      /* The claim quotes the ceiling. Worth knowing what sits behind it:
+         most rows land on the 30% floor and 116 go deeper, so the headline is
+         the best case and the card's own chip is what any given pack gets. */
       '<div class="hero-facts">' +
         '<div class="hero-fact"><b>B2B</b>' +
           '<span>only — imported chocolates, sold wholesale to the trade</span></div>' +
         '<div class="hero-fact gold"><b>' + rupee(ORDER_MIN) + '</b>' +
           '<span>minimum order, combined across brands</span></div>' +
-        '<div class="hero-fact red"><b>30% off</b>' +
-          '<span>every list price, at minimum — many go deeper</span></div>' +
+        '<div class="hero-fact red"><b>Up to ' + MAX_OFF + '% off</b>' +
+          '<span>list price — 30% off at minimum, on every pack</span></div>' +
       '</div>' +
       '<p class="hero-sub">Belgian pralines, Italian dragées, Swiss bars and other imported ' +
       'chocolates — ' + BRANDS.length + ' names a shop would otherwise open ' +
@@ -861,8 +872,8 @@ function viewProduct(slug) {
   /* Price box is re-rendered whenever the size changes, so the figure always
      belongs to the option that is actually selected. */
   var pricing = '<div id="priceBox">' + priceBoxHtml(p.variants[0] || p) + '</div>' +
-    '<p class="trade-note">Trade price — 30% under ' + esc(b.short) + '’s own listed ' +
-    'price, which is the MRP shown beside it.</p>';
+    '<p class="trade-note">Trade price — ' + (p.discount || 30) + '% under ' +
+    esc(b.short) + '’s own listed price, which is the MRP shown beside it.</p>';
 
   var opts = (p.variants || []).filter(function (v) { return v.title; });
   var sizes = opts.length > 1
@@ -1078,7 +1089,8 @@ function viewCart() {
         '</span></div>' +
       '<div class="sum-line total"><span>Order total</span><span>' +
         rupee(sub + gst + freight) + '</span></div>' +
-      (saved ? '<div class="sum-line"><span>You save (30% off list)</span><span>' +
+      (saved ? '<div class="sum-line"><span>You save (' +
+        Math.round(saved / (sub + saved) * 100) + '% off list)</span><span>' +
         '&minus;' + rupee(saved) + '</span></div>' : '') +
       '<p style="font-size:12px;color:var(--ink-mute);margin:12px 0 16px;line-height:1.5">' +
         'Your opening order from each brand is fully returnable.</p>' +
@@ -1140,7 +1152,8 @@ function viewJoin() {
         '<button class="btn btn-ink btn-lg btn-block" type="submit">Create account</button>' +
       '</form>' +
       '<ul class="perks">' +
-        perk('Trade rates 30% under list, across every label, from day one.') +
+        perk('Trade rates 30% under list and up to ' + MAX_OFF +
+             '% off, across every label, from day one.') +
         perk('Free returns on your first order from any brand.') +
         perk('One invoice and one delivery across every label.') +
       '</ul>' +
