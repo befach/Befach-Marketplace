@@ -122,6 +122,15 @@ p{margin:0}
   .logo-word,.logo-mark{font-size:22px}
   .utility .wrap{gap:0}
 }
+/* At 320px the logo plus the two action buttons ran 15px past the viewport,
+   which put a horizontal scroll on every page of the site. Nothing in here
+   applies above 360px. */
+@media(max-width:360px){
+  .hdr-main{gap:8px}
+  .logo-word,.logo-mark{font-size:19px}
+  .hdr-actions .btn{height:34px;padding:0 11px;font-size:12.5px}
+  .hero-fact b{font-size:23px}
+}
 
 /* ================= hero ================= */
 .hero{position:relative;overflow:hidden;background:var(--paper-2)}
@@ -147,7 +156,18 @@ p{margin:0}
 .hero-fact span{font-size:12.5px;line-height:1.35;color:#C9D4E0}
 .hero-fact.gold span{color:#4A3708}
 .hero-fact.red span{color:#F6DED8}
-@media(max-width:560px){.hero-fact{flex:1 1 100%;flex-direction:row;align-items:baseline;gap:12px}}
+@media(max-width:560px){
+  /* Row sat each description at whatever x its own number happened to end --
+     85px, 123px and 199px in, because the numbers are 55, 93 and 169px wide --
+     so the three boxes read ragged against each other. Stacked, every line in
+     all three starts on the same left edge, and it survives a number longer
+     than "Up to 59% off" without a magic column width. */
+  .hero-facts{gap:10px}
+  .hero-fact{flex:1 1 100%;flex-direction:column;align-items:stretch;gap:5px;
+    padding:14px 16px}
+  .hero-fact b{font-size:26px;white-space:normal}
+  .hero-fact span{font-size:13px}
+}
 
 .hero-sub{margin-top:22px;font-size:17.5px;line-height:1.62;color:var(--ink-soft);
   max-width:52ch}
@@ -169,7 +189,11 @@ p{margin:0}
   box-shadow:var(--shadow);font-size:12.5px;z-index:2}
 .hero-stat b{display:block;font-family:var(--serif);font-size:21px;color:var(--neel)}
 @media(max-width:960px){
-  .hero-grid{grid-template-columns:1fr;gap:44px;padding:52px 0 60px}
+  /* .hero-grid's padding shorthand zeroes the 24px side gutter .wrap sets.
+     Above 1280px the wrap's own centring hides that; here there is no centring
+     left to hide it, so the headline, the fact boxes and the body copy all ran
+     into both screen edges. */
+  .hero-grid{grid-template-columns:1fr;gap:44px;padding:52px 24px 60px}
   .arch-collage{max-width:520px}
 }
 @media(max-width:560px){.arch-c{display:none}.arch-collage{grid-template-columns:1fr 1fr}}
