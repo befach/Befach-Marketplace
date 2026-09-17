@@ -981,7 +981,12 @@ function viewBrand(id) {
         '<div class="sec-head"><div><h2 style="font-size:24px">' + esc(c.name) +
         ' <span class="deva" style="color:var(--haldi);font-size:19px">' + esc(c.hi) + '</span></h2>' +
         '<p>' + esc(c.tagline) + '</p></div>' +
-        '<a class="link-more" href="#/browse?cat=' + c.key + '">All ' + sub.length + '</a></div>' +
+        /* Carry the brand through. The count beside this link is already the
+           brand's own (sub.length), so dropping b= sent "All 39" to every
+           brand's chocolate -- 381 products -- and the page contradicted the
+           link the reader had just pressed. */
+        '<a class="link-more" href="#/browse?b=' + esc(b.id) + '&cat=' + c.key +
+        '">All ' + sub.length + '</a></div>' +
         grid(sub.slice(0, 5), 'five') + '</section>';
     }).join('') +
   '</div>';
