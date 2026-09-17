@@ -155,6 +155,12 @@ function variantOf(p, size) {
   return hit || defaultVariant(p);
 }
 
+/* "1 products" was showing on every single-line label in the brand grid.
+   Counts get printed in nine places, so this lives in one of them instead. */
+function plural(n, one, many) {
+  return n + ' ' + (n === 1 ? one : (many || one + 's'));
+}
+
 function reviewLabel(n) {
   if (!n) return 'New';
   return n >= 1000 ? (Math.floor(n / 100) / 10) + 'k reviews' : n + ' reviews';
@@ -399,7 +405,7 @@ function viewHome() {
       '<div class="cat-thumb"><img src="' + esc(rep.img) + '" alt="" loading="lazy"></div>' +
       '<h4>' + esc(c.name) + '</h4>' +
       '<span class="deva">' + esc(c.hi) + '</span>' +
-      '<span>' + c.count + ' product' + (c.count===1?'':'s') + '</span></a>';
+      '<span>' + plural(c.count, 'product') + '</span></a>';
   }).join('');
 
   return '' +
@@ -428,8 +434,8 @@ function viewHome() {
          buyer wants is to see the range before opening an account. */
       '<div class="hero-cta">' +
         '<a href="#/join" class="btn btn-ink btn-lg">Open a trade account</a>' +
-        '<a href="#/browse" class="btn btn-ghost btn-lg">Browse ' + PRODUCTS.length +
-        ' products &rarr;</a>' +
+        '<a href="#/browse" class="btn btn-ghost btn-lg">Browse ' +
+        plural(PRODUCTS.length, 'product') + ' &rarr;</a>' +
       '</div>' +
       '<p class="hero-note">Free to join · GST-registered buyers only · ' +
       'Free returns on your opening order</p>' +
@@ -461,7 +467,8 @@ function viewHome() {
     '<div class="sec-head"><div>' +
       '<h2>Shop by category</h2>' +
       '<p>' + CATEGORIES.length + ' shelves, ' + PRODUCTS.length + ' lines, ready for your next order.</p>' +
-    '</div><a class="link-more" href="#/browse">See all ' + PRODUCTS.length + ' products</a></div>' +
+    '</div><a class="link-more" href="#/browse">See all ' +
+    plural(PRODUCTS.length, 'product') + '</a></div>' +
     '<div class="cat-grid">' + catTiles + '</div>' +
   '</div></section>' +
 
@@ -492,7 +499,7 @@ function viewHome() {
             '<div><span>Lead time</span><b>' + esc(b.leadDays) + ' days</b></div>' +
           '</div>' +
           '<a href="#/brand/' + esc(b.id) + '" class="btn btn-gold btn-lg">' +
-          'View all ' + mine.length + ' products</a>' +
+          'View all ' + plural(mine.length, 'product') + '</a>' +
         '</div>' +
         '<div class="spot-shots">' + shots.map(function (p) {
           return '<img src="' + esc(p.img) + '" alt="' + esc(p.title) + '" loading="lazy">';
@@ -505,7 +512,8 @@ function viewHome() {
     ? '<section class="sec-tight"><div class="wrap">' +
         '<div class="sec-head"><div><h2>More brands on Befach</h2>' +
         '<p>Every one vetted, all of them in the same cart.</p></div>' +
-        '<a class="link-more" href="#/browse">Shop all ' + PRODUCTS.length + ' products</a></div>' +
+        '<a class="link-more" href="#/browse">Shop all ' +
+        plural(PRODUCTS.length, 'product') + '</a></div>' +
         '<div class="pipeline-grid">' + BRANDS.slice(2).map(function (b) {
           var n = PRODUCTS.filter(function (p) { return p.brandId === b.id; }).length;
           return '<a class="pbrand" href="#/brand/' + esc(b.id) + '">' +
@@ -513,7 +521,7 @@ function viewHome() {
               esc(b.short.charAt(0)) + '</div>' +
             '<h5>' + esc(b.name) + '</h5>' +
             '<span>' + (importedFrom(b) ? esc(importedFrom(b)) : 'Imported range') + '</span>' +
-            '<span>' + n + ' products</span></a>';
+            '<span>' + plural(n, 'product') + '</span></a>';
         }).join('') + '</div>' +
       '</div></section>'
     : '') +
@@ -641,7 +649,7 @@ function viewBrowse(params) {
     '</aside>' +
     '<section>' +
       '<div class="browse-head"><div><h1>' + esc(title) + '</h1>' +
-        '<p class="cnt">' + list.length + ' product' + (list.length === 1 ? '' : 's') +
+        '<p class="cnt">' + plural(list.length, 'product') +
         ' · ' + esc(sub) + '</p></div>' +
         '<select class="sortsel" id="sortSel">' +
           opt('featured', 'Featured', sort) +
@@ -830,7 +838,7 @@ function viewAdmin() {
 
   return '<div class="wrap adm">' +
     '<div class="browse-head"><div><h1>Orders</h1>' +
-      '<p class="cnt">' + orders.length + ' order' + (orders.length === 1 ? '' : 's') +
+      '<p class="cnt">' + plural(orders.length, 'order') +
       ' placed on this device</p></div>' +
       (orders.length
         ? '<div style="display:flex;gap:10px">' +
@@ -955,7 +963,7 @@ function viewBrand(id) {
             ? 'Imported from ' + esc(importedFrom(b)) : 'Imported range') +
           '</span><span>·</span>' +
         (b.since ? '<span>Since ' + b.since + '</span><span>·</span>' : '') +
-        '<span>' + list.length + ' products</span></div>' +
+        '<span>' + plural(list.length, 'product') + '</span></div>' +
         '<div class="badge-row">' + b.values.map(function (v) {
           return '<span class="vbadge">' + esc(VAL[v].label) + '</span>'; }).join('') +
           '<span class="vbadge">' + esc(b.prep.split(' · ')[0]) + '</span></div>' +
@@ -981,7 +989,12 @@ function viewBrand(id) {
         '<div class="sec-head"><div><h2 style="font-size:24px">' + esc(c.name) +
         ' <span class="deva" style="color:var(--haldi);font-size:19px">' + esc(c.hi) + '</span></h2>' +
         '<p>' + esc(c.tagline) + '</p></div>' +
-        '<a class="link-more" href="#/browse?cat=' + c.key + '">All ' + sub.length + '</a></div>' +
+        /* Carry the brand through. The count beside this link is already the
+           brand's own (sub.length), so dropping b= sent "All 39" to every
+           brand's chocolate -- 381 products -- and the page contradicted the
+           link the reader had just pressed. */
+        '<a class="link-more" href="#/browse?b=' + esc(b.id) + '&cat=' + c.key +
+        '">All ' + sub.length + '</a></div>' +
         grid(sub.slice(0, 5), 'five') + '</section>';
     }).join('') +
   '</div>';
@@ -1063,8 +1076,7 @@ function viewCart() {
     '<div>' +
       '<h1 style="font-size:32px;margin-bottom:6px">Your order</h1>' +
       '<p style="color:var(--ink-soft);font-size:14px;margin-bottom:24px">' +
-        cartCount() + ' item' + (cartCount() === 1 ? '' : 's') + ' from ' +
-        groups.length + ' brand' + (groups.length === 1 ? '' : 's') +
+        plural(cartCount(), 'item') + ' from ' + plural(groups.length, 'brand') +
         ' · one invoice, one delivery</p>' +
       sections +
     '</div>' +
@@ -1554,7 +1566,8 @@ byId('q').addEventListener('input', function (e) {
   }, 260);
 });
 
-byId('q').placeholder = 'Search ' + PRODUCTS.length + ' products from ' + BRANDS.length + ' brands…';
+byId('q').placeholder = 'Search ' + plural(PRODUCTS.length, 'product') +
+  ' from ' + plural(BRANDS.length, 'brand') + '…';
 
 /* Delegated so cards appended by Show more work without rebinding. */
 document.addEventListener('click', function (e) {
