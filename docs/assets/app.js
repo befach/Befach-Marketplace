@@ -66,51 +66,98 @@ var account = load('befach.account', null);   // null = pricing locked, Faire-st
 var orders  = load('befach.orders', []);
 
 /* ---------------- the order sheet ----------------
-   Nothing here serves the shop front: localStorage stays the source of truth
-   for what the buyer and the admin page see, and this only copies a placed
-   order out to a Google Sheet the office can work from. The receiving end is
-   an Apps Script web app bound to that sheet, deployed to run as its owner,
-   so the page needs no key beyond the shared string below -- which travels in
-   this file and is therefore a filter against crawlers, not a secret. */
-/* Apps Script takes a post of a few megabytes, but a logo is a courtesy here
-   rather than an asset library: past this, a link is the better answer. */
+   A Google Sheet the office works from, written by an Apps Script web app
+   bound to it and deployed to run as its owner, so the page needs no key
+   beyond the shared string below -- which travels in this file and is
+   therefore a filter against crawlers, not a secret. */
 var LOGO_MAX  = 2 * 1024 * 1024;
 var SHEET_URL = 'https://script.google.com/macros/s/AKfycbxus9uW8Ng0wozqP-8GbO9dBpFpYs-Jp3T8r4Mb64lzqdNzuCYu81mX1F_Xn7fVWZjvAg/exec';
 var SHEET_KEY = 'QBTO0I8PX3p_WBpJKYZK1syvO_RRGKVz';   // must match SECRET in the Apps Script
 
 /* The post is made by the browser that placed the order, so it can fail on a
-   dropped connection with the order already saved. Queue it and try again on
-   the next load rather than lose it -- the script skips an order id it has
-   already written, so a retry cannot double up. */
+   dropped connection with the order already saved here. It is queued and
+   retried until it lands; the script skips an order id it has already
+   written, so a retry cannot double it. */
 function relay(kind, payload) {
-  if (!SHEET_URL || !SHEET_KEY) return;
   var q = load('befach.relay', []);
-  q.push({ kind: kind, payload: payload });
-  save('befach.relay', q.slice(-50));   // a queue that never drains is a leak
+  q.push({ kind: kind, payload: payload, at: Date.now() + Math.random() });
+  save('befach.relay', q.slice(-300));   // a queue that never drains is a leak
   flushRelay();
 }
+/* Drains the whole queue, oldest first, one post at a time.
+
+   It used to send one item per call, and to leave an item the script refused
+   at the head of the queue for good. From 18 September the script refused
+   every signup ("You can't set the number format of cells in a typed column"
+   -- the Leads tab had been made a table), and since a shop signs up before it
+   orders, every order after that waited behind its refused signup and nothing
+   reached the sheet at all.
+
+   Now a refused item goes to the back of the queue and the rest carry on.
+   It is kept, not dropped -- it is somebody's lead -- and tried again on the
+   next pass, so it lands once the sheet is fixed. A network failure stops the
+   pass: nothing behind it would get through either. */
 function flushRelay() {
+  if (flushRelay.busy) return;
   var q = load('befach.relay', []);
-  if (!SHEET_URL || !SHEET_KEY || !q.length || flushRelay.busy) return;
+  if (!q.length) return;
   flushRelay.busy = true;
-  var item = q[0], body = { secret: SHEET_KEY, kind: item.kind };
-  body[item.kind] = item.payload;
-  var drop = function () { save('befach.relay', load('befach.relay', []).slice(1)); };
-  fetch(SHEET_URL, {
-    method: 'POST',
-    /* text/plain keeps this a simple request. application/json would trigger a
-       CORS preflight, and Apps Script does not answer one. */
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(body)
-  }).then(function (r) { return r.json(); })
-    .then(function (j) {
-      if (j && j.ok) { drop(); return; }
-      /* A rejected key or an unknown kind will be rejected every time too, so
-         retrying it forever only blocks the orders queued behind it. */
-      if (j && (j.error === 'auth' || j.error === 'unknown kind')) drop();
-    })
-    .catch(function () {})            // a network failure keeps its place
-    .then(function () { flushRelay.busy = false; });
+  var left = q.length;                 // one pass: each item tried at most once
+  var remove = function (item) {
+    save('befach.relay', load('befach.relay', []).filter(function (x) { return x.at !== item.at; }));
+  };
+  var toBack = function (item) {
+    var cur = load('befach.relay', []).filter(function (x) { return x.at !== item.at; });
+    item.tries = (item.tries || 0) + 1;
+    cur.push(item); save('befach.relay', cur);
+  };
+  (function next() {
+    var cur = load('befach.relay', []);
+    if (!cur.length || left-- <= 0) return done();
+    var item = cur[0];
+    if (!item.at) { item.at = Date.now() + Math.random(); cur[0] = item; save('befach.relay', cur); }
+    var body = { secret: SHEET_KEY, kind: item.kind };
+    body[item.kind] = item.payload;
+    fetch(SHEET_URL, {
+      method: 'POST',
+      /* text/plain keeps this a simple request. application/json would trigger
+         a CORS preflight, and Apps Script does not answer one. */
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    }).then(function (r) {
+      return r.text().then(function (t) {
+        var j = null;
+        try { j = JSON.parse(t); } catch (e) {}   // an HTML error page is a refusal too
+        /* A rejected key or an unknown kind will be rejected every time, and
+           means this build and the script disagree -- nothing to keep. */
+        if (j && (j.ok || j.error === 'auth' || j.error === 'unknown kind')) remove(item);
+        else toBack(item);
+        next();
+      });
+    }, function () { done(); });        // network down: try again later
+  }());
+  function done() {
+    flushRelay.busy = false;
+    if (load('befach.relay', []).length) setTimeout(flushRelay, 60000);
+  }
+}
+
+/* Orders still waiting in this browser's queue have never reached the sheet.
+   Those under an old-style id get a new one before they go: ids used to be
+   counted per browser, so every browser's first order of a day was
+   BF-yymmdd-001, and the sheet silently skips an id it already has. The new
+   tail comes from the order's own timestamp, so a retry reuses it. Only
+   queued orders are touched -- one that already landed is not sent again. */
+var OLD_ID = /^BF-\d{6}-\d{3}$/;
+function backfill() {
+  var q = load('befach.relay', []), changed = false;
+  q.forEach(function (it) {
+    if (it.kind === 'order' && it.payload && OLD_ID.test(it.payload.id)) {
+      it.payload.id += '-' + Number(it.payload.placedAt || 0).toString(36).slice(-4).toUpperCase();
+      changed = true;
+    }
+  });
+  if (changed) save('befach.relay', q);
 }
 
 /* ---------------- helpers ---------------- */
@@ -692,11 +739,16 @@ function pad2(n) { return (n < 10 ? '0' : '') + n; }
 var DTF = new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 function when(ts) { try { return DTF.format(new Date(ts)); } catch (e) { return ''; } }
 
+/* The id has to be unique across every browser, not only this one. It used to
+   count this browser's orders for the day, so two shops each placing their
+   first order of the day were both BF-yymmdd-001 -- and the sheet skips an id
+   it has already written, so the second order never reached it. */
 function nextOrderId() {
   var d = new Date();
   var day = String(d.getFullYear()).slice(2) + pad2(d.getMonth() + 1) + pad2(d.getDate());
-  var n = orders.filter(function (o) { return o.id.indexOf('BF-' + day) === 0; }).length + 1;
-  return 'BF-' + day + '-' + ('00' + n).slice(-3);
+  var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789', tail = '';
+  for (var i = 0; i < 5; i++) tail += abc[Math.floor(Math.random() * abc.length)];
+  return 'BF-' + day + '-' + tail;
 }
 
 function snapshotOrder() {
@@ -723,7 +775,8 @@ function snapshotOrder() {
     buyer: {
       shop:  (account && account.shop)  || '', city: (account && account.city) || '',
       phone: (account && account.phone) || '',
-      gst:   (account && account.gst)   || '', type: (account && account.type) || ''
+      gst:   (account && account.gst)   || '', type: (account && account.type) || '',
+      address: (account && account.address) || {}
     },
     brands: groups,
     orderMin: ORDER_MIN, met: sub >= ORDER_MIN,
@@ -1106,15 +1159,51 @@ function viewCart() {
         '&minus;' + rupee(saved) + '</span></div>' : '') +
       '<p style="font-size:12px;color:var(--ink-mute);margin:12px 0 16px;line-height:1.5">' +
         'Your opening order from each brand is fully returnable.</p>' +
+      addressForm() +
       /* A disabled button that only says "Place order" leaves the buyer to
          work out why. It says what is missing instead, in the one place they
          are already looking. */
-      '<button class="btn btn-ink btn-lg btn-block"' + (met ? '' : ' disabled') +
-        ' id="placeBtn">' +
-        (met ? 'Place order' : 'Add ' + rupee(toGo) + ' to place order') +
-      '</button>' +
+      '<button class="btn btn-ink btn-lg btn-block" id="placeBtn" data-togo="' + toGo + '"></button>' +
       '<a href="#/browse" class="btn btn-plain btn-block" style="margin-top:8px">Keep shopping</a>' +
     '</aside></div>';
+}
+
+/* ---------------- delivery address ----------------
+   Required on every order: the goods have to go somewhere, and a city alone
+   is not a place a courier can find. It is kept on the account, so a shop
+   types it once. */
+function addressOk() {
+  var a = (account && account.address) || {};
+  return String((account && account.phone) || '').replace(/\D/g, '').length >= 10 &&
+         (a.line1 || '').length >= 5 && !!a.city && !!a.state && /^\d{6}$/.test(a.pincode || '');
+}
+function addressForm() {
+  var a = (account && account.address) || {};
+  function f(id, key, label, val, attrs) {
+    return '<div class="field"><label for="' + id + '">' + label + '</label>' +
+      '<input id="' + id + '" data-addr="' + key + '" value="' + esc(val || '') + '" ' + (attrs || '') + '></div>';
+  }
+  return '<div class="addr"><h4>Delivery address</h4>' +
+    f('addrPhone', 'phone', 'Phone', account && account.phone,
+      'type="tel" inputmode="tel" autocomplete="tel" required') +
+    f('addr1', 'line1', 'Address', a.line1,
+      'autocomplete="address-line1" placeholder="Shop no., building, street" required') +
+    f('addr2', 'line2', 'Area / landmark <span class="hint">optional</span>', a.line2,
+      'autocomplete="address-line2"') +
+    '<div class="field-row">' +
+      f('addrCity', 'city', 'City', a.city || (account && account.city), 'autocomplete="address-level2" required') +
+      f('addrPin', 'pincode', 'Pincode', a.pincode,
+        'inputmode="numeric" maxlength="6" autocomplete="postal-code" required') +
+    '</div>' +
+    f('addrState', 'state', 'State', a.state, 'autocomplete="address-level1" required') +
+  '</div>';
+}
+function syncPlace() {
+  var b = byId('placeBtn'); if (!b) return;
+  var toGo = +b.getAttribute('data-togo') || 0, ok = addressOk();
+  b.disabled = toGo > 0 || !ok;
+  b.textContent = toGo > 0 ? 'Add ' + rupee(toGo) + ' to place order'
+                : !ok ? 'Add the delivery address to place order' : 'Place order';
 }
 
 /* ================= VIEW: retailer signup ================= */
@@ -1425,7 +1514,23 @@ function bindView(r) {
     });
   });
   var place = byId('placeBtn');
+  if (place && account) {
+    /* The city field starts filled from signup; make the saved address agree. */
+    var ad = account.address = account.address || {};
+    if (!ad.city && account.city) { ad.city = account.city; save('befach.account', account); }
+    syncPlace();
+  }
+  qa('[data-addr]').forEach(function (el) {
+    el.addEventListener('input', function () {
+      var a = account.address = account.address || {};
+      if (el.id === 'addrPhone') account.phone = el.value.trim();
+      else a[el.getAttribute('data-addr')] = el.value.trim();
+      save('befach.account', account);
+      syncPlace();
+    });
+  });
   if (place) place.addEventListener('click', function () {
+    if (place.disabled || !addressOk()) return;
     var total = cartTotal();
     /* Write the order before the cart is emptied, and before the modal, so a
        closed tab at the wrong moment cannot lose it. */
@@ -1588,6 +1693,7 @@ window.addEventListener('hashchange', function () { render(); window.scrollTo(0,
 window.addEventListener('scroll', drift, { passive: true });
 window.addEventListener('resize', drift);
 render();
+backfill();                          // re-id stuck orders the sheet would skip
 flushRelay();                        // anything a dropped connection left behind
 
 })();
