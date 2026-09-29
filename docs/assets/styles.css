@@ -578,6 +578,12 @@ p{margin:0}
   font-size:14px;color:var(--ink-soft)}
 .line-total b{font-family:var(--serif);font-size:19px;color:var(--ink)}
 
+/* checkout: delivery address, in the order summary */
+.addr{border-top:1px solid var(--line);margin:4px 0 16px;padding-top:16px}
+.addr h4{font-size:15px;margin-bottom:12px}
+.addr .field{margin-bottom:12px}
+.addr .field input{height:42px}
+
 /* ================= admin: orders ================= */
 .adm{padding:32px 0 72px}
 .adm-note{font-size:13px;color:var(--ink-mute);background:var(--haldi-tint);
